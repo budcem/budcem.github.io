@@ -342,6 +342,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .auth .lead { margin: -6px 0 6px; color: var(--muted); font-size: 15px; }
 .auth .err { color: var(--expense); font-size: 14px; margin: 0; }
 .auth .link { justify-self: center; }
+.auth .warn { font-size: 14px; line-height: 1.45; padding: 12px 14px; border-radius: 14px; background: color-mix(in srgb, var(--expense) 12%, transparent); border: 1px solid color-mix(in srgb, var(--expense) 40%, transparent); }
 .auth .code { font: 600 22px/1.4 ui-monospace, Menlo, monospace; letter-spacing: 1px; text-align: center; padding: 14px; border-radius: 14px; background: var(--card); border: 1px dashed var(--muted); user-select: all; word-break: break-all; }
 .acct { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .acct b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
@@ -608,9 +609,8 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   const b64 = buf => { const a = new Uint8Array(buf); let t = ""; for (let i = 0; i < a.length; i += 0x8000) t += String.fromCharCode.apply(null, a.subarray(i, i + 0x8000)); return btoa(t); };
   const unb64 = v => Uint8Array.from(atob(v), c => c.charCodeAt(0));
   const KEY_LS = "budcem.key.";
-  const RC_ABC = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const newRecoveryCode = () => Array.from(crypto.getRandomValues(new Uint8Array(20)), x => RC_ABC[x % 32]).join("").match(/.{4}/g).join("-");
-  const normCode = v => (v || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  // Bərpa kodunu istifadəçi özü yazır; böyük-kiçik hərf və artıq boşluqlar fərq etmir
+  const normCode = v => (v || "").trim().replace(/\s+/g, " ").toLocaleLowerCase("az");
   async function kdf(secret, salt) {
     const base = await crypto.subtle.importKey("raw", te.encode(secret), "PBKDF2", false, ["deriveKey"]);
     return crypto.subtle.deriveKey({ name: "PBKDF2", salt: te.encode(salt), iterations: 200000, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
@@ -634,6 +634,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     form.addEventListener("click", ev => {
       const b = ev.target.closest("button[type=button]"); if (!b) return;
       if (b.hasAttribute("data-out")) store.signOut();
+      else if (b.hasAttribute("data-cancel")) hideAuth();
       else if (b.hasAttribute("data-copy")) { navigator.clipboard?.writeText(b.dataset.copy).then(() => toast("Kod kopyalandı"), () => {}); }
       else if (b.hasAttribute("data-forgot")) showForgot();
       else if (b.hasAttribute("data-back")) lockBack();
@@ -658,13 +659,13 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   // Şifrə sıfırlanıb: köhnə açar yalnız bərpa kodu (və ya köhnə şifrə) ilə açılır
   function showRecover(u, pass, k, msg) {
     lockScreen(`<p class="lead">Şifrəniz dəyişdirilib. Məlumatınızı açmaq üçün <b>bərpa kodunu</b> yazın. Köhnə şifrəni xatırlayırsınızsa, onu da yaza bilərsiniz.</p>
-      <label class="field"><span>Bərpa kodu və ya köhnə şifrə</span><input id="r-code" class="input" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX"></label>
+      <label class="field"><span>Bərpa kodu və ya köhnə şifrə</span><input id="r-code" class="input" autocapitalize="none" autocomplete="off" spellcheck="false"></label>
       ${errP(msg)}
       <button class="primary" type="submit">Aç</button>
       <button class="link" type="button" data-forgot>Kodum yoxdur</button>
       <button class="link" type="button" data-out>Çıxış</button>`, async () => {
-      const v = $("#r-code").value.trim();
-      const raw = (await tryUnwrap(k, v, "rc")) || (await tryUnwrap(k, v, "pw"));
+      const v = $("#r-code").value;
+      const raw = (await tryUnwrap(k, v, "rc")) || (await tryUnwrap(k, v.trim(), "pw"));
       if (!raw) return showRecover(u, pass, k, "Kod düzgün deyil. Yenidən yoxlayın.");
       try { await keysRef(u.uid).update({ pw: await seal(await kdf(pass, k.salt + "pw"), raw) }); }
       catch (e) { return showRecover(u, pass, k, "İnternet bağlantısını yoxlayın."); }
@@ -687,13 +688,26 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     lockBack = () => showRecover(u, pass, k);
   }
   let showForgot = () => {}, lockBack = () => {};
-  // Yeni bərpa kodunu göstərmək (bir dəfə)
-  function showCode(code, then, again) {
-    lockScreen(`<p class="lead">${again ? "Yeni bərpa kodunuz hazırdır. Köhnə kod artıq işləmir." : "Məlumatınız artıq şifrələnir: onu sizdən başqa heç kim, tətbiqin sahibi də görə bilməz."}</p>
-      <div class="code">${code}</div>
-      <button class="secondary" type="button" data-copy="${code}">Kopyala</button>
-      <p class="lead">Bu <b>bərpa kodunu</b> yazıb təhlükəsiz yerdə saxlayın. Şifrənizi unudub sıfırlasanız, məlumatınızı yalnız bu kodla aça biləcəksiniz. Kodu heç kimə verməyin.</p>
-      <button class="primary" type="submit">Kodu saxladım, davam et</button>`, () => { hideAuth(); then(); });
+  // Bərpa kodunu istifadəçi özü təyin edir (ilk dəfə və ya dəyişəndə)
+  const CODE_WARN = `<div class="warn"><b>Bu kodu itirməyin!</b> Onu kağıza yazın və ya etibarlı yerdə saxlayın, heç kimə verməyin.<br><br>
+    Kod nə vaxt lazım olur: şifrənizi unudub e-poçtla yeni şifrə qoysanız və tətbiq heç bir telefonunuzda açıq qalmasa (məs. telefon itib).<br><br>
+    <b>Kod itsə nə olur:</b> belə halda məlumatınızı açmaq mümkün olmayacaq və bütün əməliyyatlarınız həmişəlik itəcək. Onu heç kim, tətbiqin sahibi də bərpa edə bilməz.</div>`;
+  function showSetCode(pass, onDone, opts = {}) {
+    lockScreen(`<p class="lead">${opts.change ? "Yeni bərpa kodunu yazın. Köhnə kod artıq işləməyəcək." : "Məlumatınız şifrələnəcək: onu sizdən başqa heç kim, tətbiqin sahibi də görə bilməz. Özünüz üçün <b>bərpa kodu</b> təyin edin."}</p>
+      <label class="field"><span>Bərpa kodu (ən azı 8 simvol, söz və ya cümlə ola bilər)</span><input id="c-code" class="input" autocomplete="off" autocapitalize="none" spellcheck="false"></label>
+      <label class="field"><span>Bərpa kodunu təkrarlayın</span><input id="c-code2" class="input" autocomplete="off" autocapitalize="none" spellcheck="false"></label>
+      ${errP(opts.msg)}
+      ${CODE_WARN}
+      <button class="primary" type="submit">Yadda saxla</button>
+      ${opts.change ? `<button class="link" type="button" data-cancel>Ləğv et</button>` : ""}`, async () => {
+      const a = normCode($("#c-code").value), b = normCode($("#c-code2").value);
+      const again = msg => showSetCode(pass, onDone, { ...opts, msg });
+      if (a.length < 8) return again("Bərpa kodu ən azı 8 simvol olmalıdır.");
+      if (a !== b) return again("Kodlar eyni deyil.");
+      if (pass && a === normCode(pass)) return again("Bərpa kodu şifrənizlə eyni olmamalıdır.");
+      const err = await onDone(a);
+      if (err) again(err);
+    });
   }
   const hideAuth = () => { $("#auth").hidden = true; $("#auth").innerHTML = ""; };
 
@@ -741,13 +755,15 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
         const raw = await tryUnwrap(k, pass, "pw");
         return raw ? this.useKey(u, raw, true) : showRecover(u, pass, k);
       }
-      const raw = crypto.getRandomValues(new Uint8Array(32));
-      const salt = b64(crypto.getRandomValues(new Uint8Array(16)));
-      const code = newRecoveryCode();
-      try {
-        await keysRef(u.uid).set({ v: 1, salt, pw: await seal(await kdf(pass, salt + "pw"), raw), rc: await seal(await kdf(normCode(code), salt + "rc"), raw) });
-      } catch (e) { return showUnlock(u, "Açar yaradılmadı. İnternet bağlantısını yoxlayın."); }
-      showCode(code, () => this.useKey(u, raw, true));
+      showSetCode(pass, async code => {
+        if (this.user !== u) return;
+        const raw = crypto.getRandomValues(new Uint8Array(32));
+        const salt = b64(crypto.getRandomValues(new Uint8Array(16)));
+        try {
+          await keysRef(u.uid).set({ v: 1, salt, pw: await seal(await kdf(pass, salt + "pw"), raw), rc: await seal(await kdf(code, salt + "rc"), raw) });
+        } catch (e) { return "Yadda saxlanmadı. İnternet bağlantısını yoxlayın."; }
+        this.useKey(u, raw, true);
+      });
     },
     async useKey(u, raw, sweep) {
       if (this.user !== u) return;
@@ -773,16 +789,17 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
       if (await tryUnwrap(k, pass, "pw")) return;
       await keysRef(u.uid).update({ pw: await seal(await kdf(pass, k.salt + "pw"), raw) });
     },
-    // Yeni bərpa kodu: köhnə kod etibarsız olur
-    async newCode() {
+    // Bərpa kodunu dəyişmək: köhnə kod etibarsız olur
+    newCode() {
       if (!this.rawKey || !this.user) return;
-      if (!confirm("Yeni bərpa kodu yaradılsın? Köhnə kod artıq işləməyəcək.")) return;
-      const code = newRecoveryCode();
-      try {
-        const k = (await keysRef(this.user.uid).get()).data();
-        await keysRef(this.user.uid).update({ rc: await seal(await kdf(normCode(code), k.salt + "rc"), this.rawKey) });
-      } catch (e) { return toast("Alınmadı. İnternet bağlantısını yoxlayın."); }
-      showCode(code, () => {}, true);
+      const u = this.user;
+      showSetCode(null, async code => {
+        try {
+          const k = (await keysRef(u.uid).get()).data();
+          await keysRef(u.uid).update({ rc: await seal(await kdf(code, k.salt + "rc"), this.rawKey) });
+        } catch (e) { return "Alınmadı. İnternet bağlantısını yoxlayın."; }
+        hideAuth(); toast("Bərpa kodu dəyişdirildi");
+      }, { change: true });
     },
     // Şifrələmə (hesab açarı varsa): sənədə yalnız şifrəli mətn yazılır
     async wrap(obj) { return this.key ? { enc: await sealJson(this.key, obj) } : obj; },
@@ -1717,7 +1734,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
         <p class="label">Hesab</p>
         <div class="acct"><b>${esc(displayName(store.user.email))}</b><button class="secondary" data-logout>Çıxış</button></div>
         ${(store.user.email || "").endsWith(USER_DOMAIN) ? `<button class="secondary" style="margin-top:10px;width:100%" data-addemail>E-poçt əlavə et (şifrə bərpası üçün)</button>` : ""}
-        ${store.key ? `<button class="secondary" style="margin-top:10px;width:100%" data-newcode>Yeni bərpa kodu yarat</button>` : ""}
+        ${store.key ? `<button class="secondary" style="margin-top:10px;width:100%" data-newcode>Bərpa kodunu dəyiş</button>` : ""}
         <p class="note" style="text-align:left;margin:10px 0 0">${store.key ? "Məlumatlarınız şifrələnib: onu yalnız siz görürsünüz, tətbiqin sahibi də görə bilməz. İstənilən telefondan bu adla daxil ola bilərsiniz." : "Məlumatlarınız hesabınızda saxlanılır. İstənilən telefondan bu adla daxil olub görə bilərsiniz."}</p>
       </section>` : ""}
       ${store.mode === "local" || store.cloud ? `
