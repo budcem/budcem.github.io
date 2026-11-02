@@ -109,6 +109,11 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .acc b { font-size: 15px; white-space: nowrap; }
 .acc b.neg { color: var(--expense); }
 .xfer { border: 0; border-radius: 12px; padding: 0 10px; background: var(--accent); color: var(--accent-fg); font-weight: 600; font-size: 13px; white-space: nowrap; }
+.fb-list { display: grid; gap: 8px; }
+.fb-item { padding: 12px 14px; }
+.fb-meta { font-size: 12px; color: var(--muted); }
+.fb-text { margin: 4px 0; white-space: pre-wrap; word-break: break-word; }
+.fb-reply { margin-top: 6px; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 12%, transparent); white-space: pre-wrap; word-break: break-word; }
 textarea.input { resize: vertical; min-height: 120px; font: inherit; font-size: 16px; line-height: 1.4; }
 .subsplit { font-size: 12px; color: var(--muted); margin-top: 4px; }
 .zoom { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 20px; }
@@ -832,6 +837,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
       hideAuth();
       this.initDb({ doc: p => this.fb.fs.doc(p) }, u.uid, `users/${u.uid}`);
       if (sweep) this.encryptOld(u).catch(() => {});
+      setTimeout(() => { if (this.user === u) checkReplies(); }, 2500);
     },
     // Girişdə bir dəfə: buludda şifrəsiz qalan yazılar və əsas sənəd şifrələnir
     async encryptOld(u) {
@@ -2026,8 +2032,17 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
   // Rəy və təkliflər: Firestore "feedback" kolleksiyasına yazılır (yalnız əlavə etmək olar, oxumaq yox).
   // Bu mesaj şifrələnmir, çünki onu tətbiqin sahibi Firebase konsolunda oxuyur.
   function openFeedback() {
-    const f = { kind: "Təklif", text: "", msg: "" };
+    const f = { kind: "Təklif", text: "", msg: "", list: null };
     const KINDS = ["Təklif", "Xəta", "Sual"];
+    const fmtDate = ts => { const d = ts?.toDate ? ts.toDate() : null; return d ? `${d.getDate()} ${MON_SHORT[d.getMonth()]} ${d.getFullYear()}` : ""; };
+    const listHtml = () => f.list === null ? `<p class="note">Yüklənir…</p>` : !f.list.length ? "" : `
+          <p class="label" style="margin:8px 4px 0">Müraciətlərim</p>
+          <div class="fb-list">${f.list.map(x => `
+            <div class="card fb-item">
+              <div class="fb-meta">${esc(x.kind || "")} · ${fmtDate(x.created)}</div>
+              <div class="fb-text">${esc(x.text || "")}</div>
+              ${x.reply ? `<div class="fb-reply"><b>Cavab:</b> ${esc(x.reply)}</div>` : `<div class="fb-meta">Cavab gözlənilir</div>`}
+            </div>`).join("")}</div>`;
     const draw = () => {
       sheet(`
         <div class="sheet-head">
@@ -2039,7 +2054,8 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
           <div class="seg three">${KINDS.map(k => `<button data-fkind="${k}" aria-pressed="${f.kind === k}">${k}</button>`).join("")}</div>
           <label class="field"><span>Mesajınız</span><textarea id="fb-text" class="input" rows="6" maxlength="1500" placeholder="Nəyi bəyəndiniz, nə çatışmır, nə əlavə edək?">${esc(f.text)}</textarea></label>
           ${f.msg ? `<p class="note" style="text-align:left;color:var(--expense)">${esc(f.msg)}</p>` : ""}
-          <p class="note">Mesajı tətbiqin sahibi oxuyacaq. Cavab verə bilməsi üçün hesabınızın adı (${esc(displayName(store.user?.email || ""))}) da göndərilir. Xərc və gəlirləriniz göndərilmir.</p>
+          <p class="note">Mesajı tətbiqin sahibi oxuyacaq. Cavab verə bilməsi üçün hesabınızın adı (${esc(displayName(store.user?.email || ""))}) da göndərilir. Xərc və gəlirləriniz göndərilmir. Cavab gələndə burada, "Müraciətlərim" altında görünəcək.</p>
+          <div id="fb-mine">${listHtml()}</div>
         </div>`);
       const ta = $("#fb-text");
       ta.addEventListener("input", e => { f.text = e.target.value; $("[data-send]").disabled = f.text.trim().length < 3; });
@@ -2056,10 +2072,33 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
           user: displayName(store.user.email), name: state.profile.name || "",
           created: firebase.firestore.FieldValue.serverTimestamp(), ua: navigator.userAgent.slice(0, 200)
         });
-        closeSheet(); toast("Təşəkkürlər! Mesajınız göndərildi");
-      } catch (err) { f.msg = err?.code === "permission-denied" ? "Göndərmək hələ mümkün deyil (server ayarı tamamlanmayıb). Bir az sonra yenidən yoxlayın." : "Göndərmək alınmadı. İnternet bağlantısını yoxlayın."; draw(); }
+        f.text = ""; f.msg = ""; f.list = null; draw(); loadMine(); toast("Təşəkkürlər! Mesajınız göndərildi");
+      } catch (err) { t.disabled = false; f.msg = err?.code === "permission-denied" ? "Göndərmək hələ mümkün deyil (server ayarı tamamlanmayıb). Bir az sonra yenidən yoxlayın." : "Göndərmək alınmadı. İnternet bağlantısını yoxlayın."; draw(); }
     };
-    draw();
+    const loadMine = async () => {
+      f.list = await myFeedback();
+      const box = $("#fb-mine"); if (box) box.innerHTML = listHtml();
+      markRepliesSeen(f.list);
+    };
+    draw(); loadMine();
+  }
+  // İstifadəçinin öz müraciətləri (cavablar admin tərəfindən konsolda "reply" sahəsinə yazılır)
+  async function myFeedback() {
+    try {
+      const q = await store.fb.fs.collection("feedback").where("uid", "==", store.user.uid).get();
+      return q.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.created?.seconds || 0) - (a.created?.seconds || 0));
+    } catch (e) { return []; }
+  }
+  const SEEN_KEY = "budcem.seenReplies";
+  function markRepliesSeen(list) {
+    try { localStorage.setItem(SEEN_KEY, JSON.stringify(list.filter(x => x.reply).map(x => x.id + ":" + x.reply.length))); } catch (e) {}
+  }
+  // Tətbiq açılanda bir dəfə: yeni cavab varsa xəbər verilir
+  async function checkReplies() {
+    const list = await myFeedback();
+    let seen = [];
+    try { seen = JSON.parse(localStorage.getItem(SEEN_KEY) || "[]"); } catch (e) {}
+    if (list.some(x => x.reply && !seen.includes(x.id + ":" + x.reply.length))) toast("Müraciətinizə cavab gəldi: Ayarlar → Bizə müraciət edin");
   }
   // Şifrəni dəyişmək: köhnə şifrə ilə təsdiq, sonra məlumatın açarı yeni şifrə ilə bağlanır
   function openChangePass() {
