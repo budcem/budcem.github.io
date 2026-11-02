@@ -92,6 +92,19 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .switch[aria-checked="true"]::after { transform: translateX(18px); }
 .switch svg { position: absolute; width: 12px; height: 12px; top: 7px; right: 6px; color: var(--muted); }
 .switch[aria-checked="true"] svg { left: 6px; right: auto; color: var(--accent-fg); }
+.gear { flex: none; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; background: var(--surface-2); color: var(--muted); display: grid; place-items: center; box-shadow: inset 0 0 0 1px var(--line); }
+.gear svg { width: 19px; height: 19px; }
+.gear, .avatar { overflow: hidden; }
+.gear img, .avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gear b { font-size: 13px; color: var(--accent); }
+.profile { display: flex; align-items: center; gap: 14px; }
+.avatar.big { position: relative; flex: none; width: 72px; height: 72px; padding: 0; border: 0; border-radius: 50%; background: var(--surface-2); color: var(--accent); display: grid; place-items: center; box-shadow: inset 0 0 0 1px var(--line); overflow: visible; }
+.avatar.big img { border-radius: 50%; }
+.avatar.big b { font-size: 26px; }
+.avatar.big svg { width: 30px; height: 30px; color: var(--muted); }
+.avatar .cam { position: absolute; right: -2px; bottom: -2px; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: var(--accent-fg); font-size: 13px; display: grid; place-items: center; box-shadow: 0 0 0 2px var(--surface); }
+.acct .sub { color: var(--muted); flex: none; }
+.acct { justify-content: flex-start; }
 @media (prefers-reduced-motion: reduce) { .switch, .switch::after { transition: none; } }
 .modes { display: grid; gap: 8px; }
 .mode { display: flex; align-items: center; gap: 12px; border: 1px solid var(--line); background: var(--surface); border-radius: 14px; padding: 14px; font-size: 16px; font-weight: 500; text-align: left; }
@@ -353,7 +366,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   <header class="topbar">
     <div class="title-wrap">
       <h1 id="title">Xülasə</h1>
-      <button class="switch" id="themeBtn" role="switch" aria-checked="false" aria-label="Tünd rejim"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+      <button class="gear" id="settingsBtn" aria-label="Ayarlar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
     </div>
     <div class="month" id="monthBox">
       <button class="icon-btn" id="prevM" aria-label="Əvvəlki ay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
@@ -454,6 +467,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     done: {},
     plan: { income: 0, types: {}, cats: {} },
     cards: [],
+    profile: {},
     // Xülasədə xərc bölgüsünün dövrü: "month" (seçilmiş ay), "all", "range"
     sumPeriod: "month", sumFrom: "", sumTo: "",
     catsVersion: CATS_VERSION,
@@ -789,6 +803,20 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
       if (await tryUnwrap(k, pass, "pw")) return;
       await keysRef(u.uid).update({ pw: await seal(await kdf(pass, k.salt + "pw"), raw) });
     },
+    async changePass(oldPass, newPass) {
+      const u = this.fb.auth.currentUser;
+      await u.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(u.email, oldPass));
+      if (this.rawKey) {
+        const k = (await keysRef(u.uid).get({ source: "server" })).data();
+        // Əvvəl açarı yeni şifrə ilə bağlayırıq, sonra şifrəni dəyişirik; arada xəta olsa, syncPass/bərpa kodu düzəldir
+        await keysRef(u.uid).update({ pw: await seal(await kdf(newPass, k.salt + "pw"), this.rawKey) });
+      }
+      try { await u.updatePassword(newPass); }
+      catch (e) {
+        if (this.rawKey) { const k = (await keysRef(u.uid).get()).data(); await keysRef(u.uid).update({ pw: await seal(await kdf(oldPass, k.salt + "pw"), this.rawKey) }).catch(() => {}); }
+        throw e;
+      }
+    },
     // Bərpa kodunu dəyişmək: köhnə kod etibarsız olur
     newCode() {
       if (!this.rawKey || !this.user) return;
@@ -836,6 +864,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
       state.done = data?.done || {};
       state.plan = normPlan(data?.plan);
       state.cards = normCards(data?.cards, data?.cardOpening);
+      state.profile = data?.profile || {};
       state.catsVersion = data ? (data.catsVersion || 1) : CATS_VERSION;
       state.ready = true;
       const migrated = [this.dropOldDefaults(), upgradeCats()].some(Boolean);
@@ -843,7 +872,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
       render();
     },
     persistLocal() {
-      try { localStorage.setItem(LS_KEY, JSON.stringify({ categories: state.categories, records: state.records, reminders: state.reminders, done: state.done, plan: state.plan, cards: state.cards, cardOpening: state.cards[0]?.opening || 0, catsVersion: state.catsVersion })); }
+      try { localStorage.setItem(LS_KEY, JSON.stringify({ categories: state.categories, records: state.records, reminders: state.reminders, done: state.done, plan: state.plan, cards: state.cards, cardOpening: state.cards[0]?.opening || 0, profile: state.profile, catsVersion: state.catsVersion })); }
       catch (e) { toast("Yadda saxlamaq alınmadı: brauzer yaddaşı əlçatan deyil."); }
     },
     initDb(db, id, path) {
@@ -868,6 +897,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
           state.done = d.done || {};
           state.plan = normPlan(d.plan);
           state.cards = normCards(d.cards, d.cardOpening);
+          state.profile = d.profile || {};
           state.catsVersion = d.catsVersion || 1;
           gotCats = true;
           if (!s.metadata.fromCache && !this.migrated) { this.migrated = true; if ([this.dropOldDefaults(), upgradeCats()].some(Boolean) || (plain && this.key)) this.saveMeta(); }
@@ -879,6 +909,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
           state.reminders = seed?.reminders || []; state.done = seed?.done || {};
           state.plan = normPlan(seed?.plan);
           state.cards = normCards(seed?.cards, seed?.cardOpening);
+          state.profile = seed?.profile || {};
           state.catsVersion = seed ? (seed.catsVersion || 1) : CATS_VERSION;
           if (seed) upgradeCats();
           this.migrated = true;
@@ -930,6 +961,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
       state.done = d.done || {};
       state.plan = normPlan(d.plan);
       state.cards = normCards(d.cards, d.cardOpening);
+      state.profile = d.profile || state.profile || {};
       state.catsVersion = d.catsVersion || 1;
       upgradeCats();
       if (this.mode === "local") { this.persistLocal(); render(); return; }
@@ -963,7 +995,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     async saveMeta() {
       render();
       if (this.mode === "local") return this.persistLocal();
-      const meta = { categories: state.categories, reminders: state.reminders, done: state.done, plan: state.plan, cards: state.cards, cardOpening: state.cards[0]?.opening || 0, catsVersion: state.catsVersion };
+      const meta = { categories: state.categories, reminders: state.reminders, done: state.done, plan: state.plan, cards: state.cards, cardOpening: state.cards[0]?.opening || 0, profile: state.profile, catsVersion: state.catsVersion };
       // catsVersion şifrəsiz də qalır ki, köhnə versiya açılsa, boş məlumatı "yeniləyib" üstünə yazmasın
       try { await this.base.set(this.key ? { ...(await this.wrap(meta)), catsVersion: state.catsVersion } : meta); }
       catch (e) { toast("Yadda saxlamaq alınmadı. Yenidən cəhd edin."); }
@@ -1001,6 +1033,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     $("#monthLabel").setAttribute("aria-label", `${MONTHS[state.month.getMonth()]} ${state.month.getFullYear()}, ay seçin`);
     $("#title").textContent = { summary: "Xülasə", records: "Əməliyyatlar", plan: "Plan", cats: "Kateqoriyalar" }[state.tab];
     $("#monthBox").hidden = state.tab === "cats";
+    paintAvatar();
     document.querySelectorAll(".tabbar button").forEach(b => {
       if (b.dataset.tab === state.tab) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
     });
@@ -1728,25 +1761,125 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
           <span class="chev">›</span>
         </button>`).join("") || `<div class="empty">Siyahı boşdur.</div>`}
       </div>
-      <button class="primary" data-newcat>+ Yeni ${state.catKind === "expense" ? "xərc maddəsi" : "gəlir mənbəyi"}</button>
+      <button class="primary" data-newcat>+ Yeni ${state.catKind === "expense" ? "xərc maddəsi" : "gəlir mənbəyi"}</button>`;
+  }
+
+  // ---------- Ayarlar (yuxarıdakı dişli ikonu) ----------
+  function openSettings() {
+    sheet(`
+      <div class="sheet-head">
+        <button class="link" data-close>Bağla</button>
+        <h2>Ayarlar</h2>
+        <span></span>
+      </div>
+      <div class="stack">
+      <section class="card profile">
+        <button class="avatar big" data-photo aria-label="Profil şəklini dəyiş">${avatarInner(true)}<span class="cam">✎</span></button>
+        <label class="field" style="flex:1;min-width:0"><span>Adınız</span><input id="pf-name" class="input" maxlength="40" placeholder="Məsələn: Elşən" value="${esc(state.profile.name || "")}"></label>
+        <input type="file" id="photoFile" accept="image/*" hidden>
+      </section>
+      ${state.profile.photo ? `<button class="link" style="justify-self:center" data-delphoto>Şəkli sil</button>` : ""}
+      <section class="card acct">
+        <span style="flex:1">Tünd rejim</span>
+        <button class="switch" id="themeBtn" role="switch" aria-checked="${isDark()}" aria-label="Tünd rejim"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+      </section>
       ${store.cloud && store.user ? `
-      <section class="card" style="margin-top:8px">
+      <section class="card" >
         <p class="label">Hesab</p>
-        <div class="acct"><b>${esc(displayName(store.user.email))}</b><button class="secondary" data-logout>Çıxış</button></div>
+        <div class="acct"><span class="sub">Giriş:</span><b>${esc(displayName(store.user.email))}</b></div>
         ${(store.user.email || "").endsWith(USER_DOMAIN) ? `<button class="secondary" style="margin-top:10px;width:100%" data-addemail>E-poçt əlavə et (şifrə bərpası üçün)</button>` : ""}
+        <button class="secondary" style="margin-top:10px;width:100%" data-changepass>Şifrəni dəyiş</button>
         ${store.key ? `<button class="secondary" style="margin-top:10px;width:100%" data-newcode>Bərpa kodunu dəyiş</button>` : ""}
         <p class="note" style="text-align:left;margin:10px 0 0">${store.key ? "Məlumatlarınız şifrələnib: onu yalnız siz görürsünüz, tətbiqin sahibi də görə bilməz. İstənilən telefondan bu adla daxil ola bilərsiniz." : "Məlumatlarınız hesabınızda saxlanılır. İstənilən telefondan bu adla daxil olub görə bilərsiniz."}</p>
       </section>` : ""}
       ${store.mode === "local" || store.cloud ? `
-      <section class="card" style="margin-top:8px">
+      <section class="card" >
         <p class="label">Ehtiyat nüsxə</p>
-        <p class="note" style="text-align:left;margin:0 0 12px">${store.cloud ? "Əlavə təhlükəsizlik üçün məlumatınızın faylını yükləyə və lazım olanda ondan bərpa edə bilərsiniz." : "Məlumatlarınız yalnız bu telefonda saxlanılır. Telefonu dəyişəndə və ya Safari məlumatlarını siləndə itməsin deyə, vaxtaşırı ehtiyat nüsxə yükləyin."}</p>
+        <p class="note" style="text-align:left;margin:0 0 12px">${store.cloud ? "Əlavə təhlükəsizlik üçün məlumatınızın faylını yükləyə və lazım olanda ondan bərpa edə bilərsiniz." : "Məlumatlarınız yalnız bu telefonda saxlanılır. Telefonu dəyişəndə və ya brauzer məlumatlarını siləndə itməsin deyə, vaxtaşırı ehtiyat nüsxə yükləyin."}</p>
         <div class="split">
           <button class="secondary" data-backup>Nüsxəni yüklə</button>
           <button class="secondary" data-restore>Nüsxədən bərpa et</button>
         </div>
         <input type="file" id="restoreFile" accept=".json,application/json" hidden>
-      </section>` : ""}`;
+      </section>` : ""}
+      ${store.cloud && store.user ? `<button class="secondary danger" data-logout>Hesabdan çıxış</button>` : ""}
+      </div>`);
+    sheetHandler = e => { const b = e.target.closest("button"); if (b) settingsAction(b); };
+    $("#pf-name").addEventListener("change", e => { state.profile = { ...state.profile, name: e.target.value.trim() }; store.saveMeta(); paintAvatar(); });
+    $("#photoFile").addEventListener("change", async e => {
+      const f = e.target.files[0]; if (!f) return;
+      try { state.profile = { ...state.profile, photo: await shrinkPhoto(f) }; await store.saveMeta(); openSettings(); paintAvatar(); }
+      catch (err) { toast("Şəkli açmaq alınmadı."); }
+    });
+  }
+  // Profil şəkli kiçildilir (160×160 JPEG, ~10 KB) və məlumatla birlikdə (şifrəli) saxlanılır
+  function shrinkPhoto(file) {
+    return new Promise((ok, no) => {
+      const img = new Image(), url = URL.createObjectURL(file);
+      img.onload = () => {
+        const n = 160, c = document.createElement("canvas"); c.width = c.height = n;
+        const m = Math.min(img.naturalWidth, img.naturalHeight);
+        c.getContext("2d").drawImage(img, (img.naturalWidth - m) / 2, (img.naturalHeight - m) / 2, m, m, 0, 0, n, n);
+        URL.revokeObjectURL(url); ok(c.toDataURL("image/jpeg", 0.8));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); no(new Error("img")); };
+      img.src = url;
+    });
+  }
+  const initials = () => (state.profile.name || (store.user ? displayName(store.user.email) : "") || "").trim().split(/\s+/).map(w => w[0] || "").join("").slice(0, 2).toLocaleUpperCase("az");
+  const GEAR_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>`;
+  const PERSON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>`;
+  const avatarInner = big => state.profile.photo ? `<img src="${esc(state.profile.photo)}" alt="">` : initials() ? `<b>${esc(initials())}</b>` : big ? PERSON_SVG : GEAR_SVG;
+  // Yuxarıdakı ayarlar düyməsi: profil şəkli, yoxdursa adın baş hərfləri, o da yoxdursa dişli
+  function paintAvatar() { const b = $("#settingsBtn"); if (b) b.innerHTML = avatarInner(); }
+  function settingsAction(b) {
+    if (b.hasAttribute("data-backup")) {
+      const data = { app: "budcem", version: 1, saved: new Date().toISOString(), categories: state.categories, records: state.records, reminders: state.reminders, done: state.done, plan: state.plan, cards: state.cards, profile: state.profile, catsVersion: state.catsVersion };
+      saveFile(`Budcem-nusxe-${ymd(new Date())}.json`, new Blob([JSON.stringify(data)], { type: "application/json" }));
+      try { localStorage.setItem(BACKUP_KEY, String(Date.now())); } catch (e) {}
+      render();
+    }
+    else if (b.hasAttribute("data-restore")) { if (!$("#restoreFile")) document.body.insertAdjacentHTML("beforeend", `<input type="file" id="restoreFile" accept=".json,application/json" hidden>`); $("#restoreFile").click(); }
+    else if (b.hasAttribute("data-logout")) { closeSheet(); store.signOut(); }
+    else if (b.hasAttribute("data-addemail")) openAddEmail();
+    else if (b.hasAttribute("data-changepass")) openChangePass();
+    else if (b.id === "themeBtn") window.toggleMode();
+    else if (b.hasAttribute("data-photo")) $("#photoFile")?.click();
+    else if (b.hasAttribute("data-delphoto")) { const { photo, ...rest } = state.profile; state.profile = rest; store.saveMeta(); openSettings(); paintAvatar(); }
+    else if (b.hasAttribute("data-newcode")) { closeSheet(); store.newCode(); }
+    else return false;
+    return true;
+  }
+  // Şifrəni dəyişmək: köhnə şifrə ilə təsdiq, sonra məlumatın açarı yeni şifrə ilə bağlanır
+  function openChangePass() {
+    const f = { old: "", p1: "", p2: "", msg: "" };
+    const draw = () => {
+      sheet(`
+        <div class="sheet-head">
+          <button class="link" data-close>Ləğv et</button>
+          <h2>Şifrəni dəyiş</h2>
+          <button class="link save" data-save>Saxla</button>
+        </div>
+        <div class="stack">
+          <label class="field"><span>İndiki şifrə</span><input id="p-old" class="input" type="password" autocomplete="current-password"></label>
+          <label class="field"><span>Yeni şifrə</span><input id="p-new" class="input" type="password" autocomplete="new-password" placeholder="Ən azı 6 simvol"></label>
+          <label class="field"><span>Yeni şifrəni təkrarlayın</span><input id="p-new2" class="input" type="password" autocomplete="new-password"></label>
+          ${f.msg ? `<p class="note" style="text-align:left;color:var(--expense)">${esc(f.msg)}</p>` : ""}
+          <p class="note">Məlumatlarınız dəyişmir. Bundan sonra bütün telefonlarda yeni şifrə ilə daxil olacaqsınız.</p>
+        </div>`);
+      ["p-old", "p-new", "p-new2"].forEach((id, i) => $("#" + id).addEventListener("input", e => { f[["old", "p1", "p2"][i]] = e.target.value; }));
+    };
+    sheetHandler = async e => {
+      const t = e.target.closest("button"); if (!t || !t.hasAttribute("data-save")) return;
+      const fail = msg => { f.msg = msg; draw(); };
+      if (!f.old) return fail("İndiki şifrənizi yazın.");
+      if (f.p1.length < 6) return fail("Yeni şifrə ən azı 6 simvol olmalıdır.");
+      if (f.p1 !== f.p2) return fail("Yeni şifrələr eyni deyil.");
+      t.disabled = true;
+      try { await store.changePass(f.old, f.p1); closeSheet(); toast("Şifrə dəyişdirildi"); }
+      catch (err) { fail(authError(err)); }
+    };
+    draw();
   }
 
   // ---------- Əməliyyat forması ----------
@@ -1929,7 +2062,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
           </button>`).join("") || `<div class="empty">Hələ xatırladıcı yoxdur.</div>`}
         </div>
         <button class="primary" data-newrem>+ Yeni xatırladıcı</button>
-        <p class="note">Telefona bildiriş gəlməsi üçün bu ödənişləri iPhone təqviminə də əlavə edə bilərsiniz.</p>
+        <p class="note">Telefona bildiriş gəlməsi üçün bu ödənişləri telefonun təqviminə də əlavə edə bilərsiniz.</p>
       </div>`);
     sheetHandler = e => {
       const t = e.target.closest("button"); if (!t) return;
@@ -2173,17 +2306,8 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     else if (b.dataset.catkind) { state.catKind = b.dataset.catkind; render(); }
     else if (b.dataset.cat) { const c = catById(b.dataset.cat); c && openCatSheet(c); }
     else if (b.hasAttribute("data-newcat")) openCatSheet(null);
-    else if (b.hasAttribute("data-backup")) {
-      const data = { app: "budcem", version: 1, saved: new Date().toISOString(), categories: state.categories, records: state.records, reminders: state.reminders, done: state.done, plan: state.plan, cards: state.cards, catsVersion: state.catsVersion };
-      saveFile(`Budcem-nusxe-${ymd(new Date())}.json`, new Blob([JSON.stringify(data)], { type: "application/json" }));
-      try { localStorage.setItem(BACKUP_KEY, String(Date.now())); } catch (e) {}
-      render();
-    }
-    else if (b.hasAttribute("data-restore")) $("#restoreFile").click();
-    else if (b.hasAttribute("data-logout")) store.signOut();
-    else if (b.hasAttribute("data-addemail")) openAddEmail();
-    else if (b.hasAttribute("data-newcode")) store.newCode();
     else if (b.hasAttribute("data-mergelocal")) store.mergeLocal();
+    else settingsAction(b);
   });
 
   // Ehtiyat nüsxədən bərpa (telefon rejimində və bulud hesabında)
@@ -2221,14 +2345,16 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     const m = getMode();
     if (m === "dark" || m === "light") document.documentElement.setAttribute("data-mode", m);
     else document.documentElement.removeAttribute("data-mode");
-    $("#themeBtn").setAttribute("aria-checked", String(isDark()));
+    $("#themeBtn")?.setAttribute("aria-checked", String(isDark()));
   }
   applyMode();
   sysDark?.addEventListener?.("change", applyMode);
-  $("#themeBtn").addEventListener("click", () => {
+  $("#settingsBtn").addEventListener("click", openSettings);
+  // Tünd rejim açarı Ayarlar pəncərəsindədir
+  window.toggleMode = () => {
     try { localStorage.setItem(MODE_KEY, isDark() ? "light" : "dark"); } catch (e) {}
     applyMode();
-  });
+  };
 
   // Ayrıca PWA kimi açılanda oflayn işləmək üçün
   if ("serviceWorker" in navigator && location.protocol === "https:" && !window.claude) {
