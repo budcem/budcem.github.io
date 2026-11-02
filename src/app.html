@@ -87,6 +87,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .gear b { font-size: 13px; color: var(--accent); }
 .crop { width: 260px; height: 260px; border-radius: 50%; overflow: hidden; box-shadow: 0 0 0 3px var(--accent); touch-action: none; }
 .crop canvas { width: 260px; height: 260px; display: block; cursor: grab; touch-action: none; }
+.subsplit { font-size: 12px; color: var(--muted); margin-top: 4px; }
 .zoom { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 20px; }
 .zoom input { flex: 1; accent-color: var(--accent); }
 .profile { display: flex; align-items: center; gap: 14px; }
@@ -406,6 +407,9 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
     { id: "i6", name: "ƏDV geri al", kind: "income" }
   ];
   const CATS_VERSION = 3;
+  // Kommunal maddəsində əlavə seçim: işıq, su, qaz. Köhnə yazılarda "sub" yoxdur, onlar olduğu kimi qalır.
+  const UTIL_SUBS = ["İşıq", "Su", "Qaz"];
+  const isUtil = c => !!c && c.kind === "expense" && (c.name || "").toLocaleLowerCase("az").startsWith("kommunal");
   const DEFAULT_CATS = [
     ...["Qida", "Restoran", "Nəqliyyat", "Yanacaq", "Kommunal", "İcarə", "Ev təmiri", "Maşın təmiri", "Maşın sığortası",
         "Sənədləşmə", "Səhiyyə", "Təhsil", "Geyim", "Rabitə və internet", "Əyləncə", "Hədiyyə", "Digər"]
@@ -1483,7 +1487,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
       const ops = [["Tarix", "Növ", "Başlıq", "Maddə", "Məbləğ", "Qeyd"]];
       d.recs.slice().sort((a, b) => a.date.localeCompare(b.date)).forEach(r => ops.push([
         r.date.split("-").reverse().join("."), r.kind === "income" ? "Gəlir" : r.kind === "cardpay" ? `Karta ödəniş (${cardName(r)})` : isCardExp(r) ? `Xərc (${cardName(r)})` : "Xərc",
-        r.kind === "expense" ? (TYPE[r.type]?.title || "") : "", r.kind === "cardpay" ? "" : catById(r.catId)?.name || "Kateqoriyasız",
+        r.kind === "expense" ? (TYPE[r.type]?.title || "") : "", r.kind === "cardpay" ? "" : (catById(r.catId)?.name || "Kateqoriyasız") + (r.sub ? ` · ${r.sub}` : ""),
         r2(Number(r.amount) || 0), r.note || ""
       ]));
       add("Əməliyyatlar", ops, [12, 18, 12, 22, 12, 30]);
@@ -1540,8 +1544,11 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
       off += len; return s;
     }).join("") : `<circle cx="66" cy="66" r="${R}" fill="none" stroke="var(--surface-2)" stroke-width="16"/>`;
 
-    const groups = {};
-    pexp.forEach(r => { const n = catById(r.catId)?.name || "Kateqoriyasız"; groups[n] = (groups[n] || 0) + Number(r.amount); });
+    const groups = {}, subs = {};
+    pexp.forEach(r => {
+      const n = catById(r.catId)?.name || "Kateqoriyasız"; groups[n] = (groups[n] || 0) + Number(r.amount);
+      if (r.sub) { const g = subs[n] ||= {}; g[r.sub] = (g[r.sub] || 0) + Number(r.amount); }
+    });
     const cats = Object.entries(groups).sort((a, b) => b[1] - a[1]);
     const max = cats[0]?.[1] || 1;
 
@@ -1593,7 +1600,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
         ${!state.catsOpen ? "" : cats.length ? `<div class="bars">${cats.map(([n, v]) => `
           <div class="bar-row">
             ${badge(n)}
-            <div class="name">${esc(n)}<div class="track"><i style="width:${(v / max * 100).toFixed(1)}%"></i></div></div>
+            <div class="name">${esc(n)}<div class="track"><i style="width:${(v / max * 100).toFixed(1)}%"></i></div>${subs[n] ? `<div class="subsplit">${[...Object.entries(subs[n]), ...(v - Object.values(subs[n]).reduce((a, x) => a + x, 0) > 0.004 ? [["Seçilməmiş", v - Object.values(subs[n]).reduce((a, x) => a + x, 0)]] : [])].map(([k, x]) => `${esc(k)} ${money(x)}`).join(" · ")}</div>` : ""}</div>
             <span class="num">${money(v)}</span>
           </div>`).join("")}</div>`
         : `<div class="empty" style="padding:16px"><b>Bu dövrdə xərc yoxdur</b>Başqa dövr seçin və ya + düyməsi ilə xərc əlavə edin.</div>`}
@@ -1756,7 +1763,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
     </button>`;
     const c = catById(r.catId);
     const name = c?.name || "Kateqoriyasız";
-    const sub = [r.kind === "income" ? "Gəlir" : TYPE[r.type]?.title, isCardExp(r) ? cardName(r) : "", r.note].filter(Boolean).map(esc).join(" · ");
+    const sub = [r.sub, r.kind === "income" ? "Gəlir" : TYPE[r.type]?.title, isCardExp(r) ? cardName(r) : "", r.note].filter(Boolean).map(esc).join(" · ");
     return `<button class="row" data-edit="${esc(r.id)}">
       ${badge(name)}
       <span class="t"><div>${esc(name)}</div><div class="sub">${sub}</div></span>
@@ -1991,6 +1998,8 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
                 <span class="chev">›</span>
               </button>
             </div>
+            ${isUtil(sel) ? `<div class="chips" style="margin-top:8px">${UTIL_SUBS.map(x => `
+              <button class="chip" data-sub="${x}" aria-pressed="${f.sub === x}">${x}</button>`).join("")}</div>` : ""}
           </div>
           <label class="field"><span>Tarix</span><input id="f-date" class="input" type="date" value="${esc(f.date)}"></label>
           <label class="field"><span>Qeyd</span><input id="f-note" class="input" placeholder="İstəyə bağlı" value="${esc(f.note)}" maxlength="120"></label>
@@ -2007,16 +2016,18 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
       const t = e.target.closest("button");
       if (!t) return;
       if (t.dataset.kind) { f.kind = t.dataset.kind; f.catId = null; catOpen = false; draw(); }
-      else if (t.hasAttribute("data-togglecats")) openPicker(f.kind === "expense" ? "Xərc maddəsi" : "Gəlir mənbəyi", state.categories.filter(c => c.kind === f.kind), f.catId, id => { f.catId = id; draw(); });
+      else if (t.hasAttribute("data-togglecats")) openPicker(f.kind === "expense" ? "Xərc maddəsi" : "Gəlir mənbəyi", state.categories.filter(c => c.kind === f.kind), f.catId, id => { f.catId = id; if (!isUtil(catById(id))) delete f.sub; draw(); });
       else if (t.dataset.type) { f.type = t.dataset.type; draw(); }
       else if (t.dataset.pay) { f.pay = t.dataset.pay; draw(); }
       else if (t.dataset.paycard) { f.cardId = t.dataset.paycard; draw(); }
+      else if (t.dataset.sub) { f.sub = f.sub === t.dataset.sub ? undefined : t.dataset.sub; draw(); }
       else if (t.dataset.pick) { f.catId = t.dataset.pick; catOpen = false; draw(); }
       else if (t.hasAttribute("data-save")) {
         const amount = Math.round(parseFloat(String(f.amount).replace(",", ".")) * 100) / 100;
         if (!(amount > 0) || !f.catId || !f.date) return;
         const rec = { id: f.id, kind: f.kind, amount, catId: f.catId, date: f.date, note: (f.note || "").trim(), created: f.created || Date.now() };
         if (f.kind === "expense") rec.type = f.type;
+        if (f.kind === "expense" && f.sub && isUtil(catById(f.catId))) rec.sub = f.sub;
         if (f.kind === "expense" && f.pay === "card") { rec.pay = "card"; rec.cardId = f.cardId || (record && record.pay === "card" ? cardIdOf(record) : state.cards[0]?.id || DEFAULT_CARD); }
         store.saveRecord(rec);
         onSaved && onSaved(rec);
