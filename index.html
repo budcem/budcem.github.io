@@ -175,6 +175,9 @@ textarea.input { resize: vertical; min-height: 120px; font: inherit; font-size: 
 .card { background: var(--surface); border-radius: 16px; padding: 16px; box-shadow: var(--shadow); }
 .backup-nag { display: grid; gap: 10px; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--credit) 55%, transparent), var(--shadow); }
 .backup-nag p { margin: 0; font-size: 14px; }
+.news { display: grid; gap: 10px; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, #e5372b 55%, transparent), var(--shadow); }
+.news p { margin: 0; font-size: 14px; }
+.news b { display: flex; align-items: center; gap: 6px; font-size: 15px; margin-bottom: 4px; }
 .backup-nag b { display: block; font-size: 15px; margin-bottom: 2px; }
 .label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
 
@@ -521,6 +524,19 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
   // Son ehtiyat nüsxənin vaxtı: 7 gündən çox keçibsə Xülasədə xatırladılır
   const BACKUP_KEY = "budcem.lastBackup";
   // Bulud hesabında: bu telefonda hesaba köçürülməmiş köhnə məlumat varsa xatırlat
+  const BELL_SVG = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm7-6V11a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v5l-2 2v1h18v-1z"/></svg>`;
+  // Bütün istifadəçilərə bir dəfəlik yenilik bildirişi (Xülasənin yuxarısında). Yeni xəbər üçün id-ni dəyişin.
+  const NEWS = { id: "feedback-2026-11", title: "Yenilik: Bizə müraciət edin", text: "Artıq tətbiq haqqında təklif, sual və xətaları birbaşa bizə yaza bilərsiniz. Cavabımız gələndə yuxarıdakı düymədə qırmızı zəng görünəcək." };
+  const NEWS_KEY = "budcem.newsSeen";
+  function newsCard() {
+    if (!store.cloud || !store.user) return "";
+    try { if (localStorage.getItem(NEWS_KEY) === NEWS.id) return ""; } catch (e) { return ""; }
+    return `<section class="card news">
+      <p><b><span class="bell-pill">${BELL_SVG}</span> ${esc(NEWS.title)}</b>${esc(NEWS.text)}</p>
+      <div class="split"><button class="primary" data-newsopen>Yaz</button><button class="secondary" data-newsclose>Bağla</button></div>
+    </section>`;
+  }
+  const seeNews = () => { try { localStorage.setItem(NEWS_KEY, NEWS.id); } catch (e) {} render(); };
   function localMergeNag() {
     if (!store.cloud || !store.user) return "";
     const seed = store.localSeed();
@@ -1667,6 +1683,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
           <button class="xfer" data-transfer aria-label="Hesablar arası köçürmə">⇄ Köçürmə</button>
         </div>
       </section>
+      ${newsCard()}
       ${localMergeNag()}
       ${backupNag()}
       ${toolTiles()}
@@ -2100,7 +2117,6 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
   }
   const SEEN_KEY = "budcem.seenReplies";
   let unreadReplies = 0;
-  const BELL_SVG = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm7-6V11a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v5l-2 2v1h18v-1z"/></svg>`;
   function markRepliesSeen(list) {
     try { localStorage.setItem(SEEN_KEY, JSON.stringify(list.filter(x => x.reply).map(x => x.id + ":" + x.reply.length))); } catch (e) {}
     unreadReplies = 0; paintBell();
@@ -2591,6 +2607,8 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
     else if (b.dataset.edit) { const r = state.records.find(x => x.id === b.dataset.edit); r && (r.kind === "cardpay" ? openCardPaySheet(r) : r.kind === "transfer" ? openTransferSheet(r) : openRecordSheet(r)); }
     else if (b.hasAttribute("data-opencard")) openCardSheet();
     else if (b.hasAttribute("data-transfer")) openTransferSheet();
+    else if (b.hasAttribute("data-newsclose")) seeNews();
+    else if (b.hasAttribute("data-newsopen")) { seeNews(); openFeedback(); }
     else if (b.dataset.delrec) { store.deleteRecord(b.dataset.delrec); toast("Silindi"); }
     else if (b.dataset.period) {
       state.sumPeriod = b.dataset.period;
