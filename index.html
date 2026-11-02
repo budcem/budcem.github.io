@@ -342,6 +342,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .auth .lead { margin: -6px 0 6px; color: var(--muted); font-size: 15px; }
 .auth .err { color: var(--expense); font-size: 14px; margin: 0; }
 .auth .link { justify-self: center; }
+.auth .code { font: 600 22px/1.4 ui-monospace, Menlo, monospace; letter-spacing: 1px; text-align: center; padding: 14px; border-radius: 14px; background: var(--card); border: 1px dashed var(--muted); user-select: all; word-break: break-all; }
 .acct { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .acct b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .acct button { flex: none; width: auto; padding: 9px 16px; }
@@ -530,7 +531,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     const reg = mode === "register";
     box.innerHTML = `<form class="box" novalidate>
       <h1>Büdcəm</h1>
-      <p class="lead">${reg ? "Yeni hesab yaradın. Məlumatlarınızı yalnız siz görəcəksiniz." : "Hesabınıza daxil olun."}</p>
+      <p class="lead">${reg ? "Yeni hesab yaradın. Məlumatlarınız şifrələnir, onları yalnız siz görəcəksiniz." : "Hesabınıza daxil olun."}</p>
       <label class="field"><span>${reg ? "E-poçt (tövsiyə olunur) və ya istifadəçi adı" : "E-poçt və ya istifadəçi adı"}</span><input id="a-user" class="input" type="email" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="${reg ? "Məsələn: ad@gmail.com" : "E-poçt və ya ad"}"></label>
       <label class="field"><span>Şifrə</span><input id="a-pass" class="input" type="password" autocomplete="${reg ? "new-password" : "current-password"}" placeholder="Ən azı 6 simvol"></label>
       ${reg ? `<label class="field"><span>Şifrəni təkrarlayın</span><input id="a-pass2" class="input" type="password" autocomplete="new-password"></label>` : ""}
@@ -549,10 +550,11 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
       if (!user.includes("@") && !/^[a-z0-9._-]{3,30}$/i.test(user)) return showAuth(mode, "İstifadəçi adında yalnız latın hərfləri, rəqəm, nöqtə, - və _ ola bilər (3-30 simvol).");
       if (reg && pass !== $("#a-pass2").value) return showAuth(mode, "Şifrələr eyni deyil.");
       form.querySelector("[type=submit]").disabled = true;
+      store.pendingPass = pass;
       try {
         if (reg) await store.fb.auth.createUserWithEmailAndPassword(toEmail(user), pass);
         else await store.fb.auth.signInWithEmailAndPassword(toEmail(user), pass);
-      } catch (e) { showAuth(mode, authError(e)); }
+      } catch (e) { store.pendingPass = null; showAuth(mode, authError(e)); }
     });
     form.addEventListener("click", async ev => {
       const b = ev.target.closest("button[type=button]"); if (!b) return;
@@ -598,6 +600,101 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     };
     draw();
   }
+  // ---------- Şifrələmə ----------
+  // Hər hesabın məlumatı telefonda təsadüfi açarla (AES-GCM) şifrələnir; buluda yalnız şifrəli mətn gedir.
+  // Açarın özü buludda iki dəfə bağlanıb saxlanılır: istifadəçinin şifrəsi ilə və bərpa kodu ilə (users/{uid}/keys/main).
+  // Admin (Firebase sahibi) nə şifrəni, nə bərpa kodunu bilir, ona görə məlumatı oxuya bilməz.
+  const te = new TextEncoder(), td = new TextDecoder();
+  const b64 = buf => { const a = new Uint8Array(buf); let t = ""; for (let i = 0; i < a.length; i += 0x8000) t += String.fromCharCode.apply(null, a.subarray(i, i + 0x8000)); return btoa(t); };
+  const unb64 = v => Uint8Array.from(atob(v), c => c.charCodeAt(0));
+  const KEY_LS = "budcem.key.";
+  const RC_ABC = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const newRecoveryCode = () => Array.from(crypto.getRandomValues(new Uint8Array(20)), x => RC_ABC[x % 32]).join("").match(/.{4}/g).join("-");
+  const normCode = v => (v || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  async function kdf(secret, salt) {
+    const base = await crypto.subtle.importKey("raw", te.encode(secret), "PBKDF2", false, ["deriveKey"]);
+    return crypto.subtle.deriveKey({ name: "PBKDF2", salt: te.encode(salt), iterations: 200000, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+  }
+  async function seal(key, bytes) { const iv = crypto.getRandomValues(new Uint8Array(12)); return { iv: b64(iv), ct: b64(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, bytes)) }; }
+  async function unseal(key, box) { return new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(box.iv) }, key, unb64(box.ct))); }
+  const importDek = raw => crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]);
+  const sealJson = (key, obj) => seal(key, te.encode(JSON.stringify(obj)));
+  const unsealJson = async (key, box) => JSON.parse(td.decode(await unseal(key, box)));
+  // Bağlanmış açarı şifrə və ya bərpa kodu ilə açmaq; alınmasa null
+  async function tryUnwrap(k, secret, which) {
+    try { return await unseal(await kdf(which === "rc" ? normCode(secret) : secret, k.salt + which), k[which]); } catch (e) { return null; }
+  }
+  const keysRef = uid => store.fb.fs.doc(`users/${uid}/keys/main`);
+  function lockScreen(html, onSubmit) {
+    const box = $("#auth");
+    box.innerHTML = `<form class="box" novalidate><h1>Büdcəm</h1>${html}</form>`;
+    box.hidden = false;
+    const form = box.querySelector("form");
+    form.addEventListener("submit", ev => { ev.preventDefault(); const btn = form.querySelector("[type=submit]"); if (btn) btn.disabled = true; onSubmit(form); });
+    form.addEventListener("click", ev => {
+      const b = ev.target.closest("button[type=button]"); if (!b) return;
+      if (b.hasAttribute("data-out")) store.signOut();
+      else if (b.hasAttribute("data-copy")) { navigator.clipboard?.writeText(b.dataset.copy).then(() => toast("Kod kopyalandı"), () => {}); }
+      else if (b.hasAttribute("data-forgot")) showForgot();
+      else if (b.hasAttribute("data-back")) lockBack();
+    });
+    const first = form.querySelector("input"); if (first) first.focus();
+  }
+  const errP = msg => msg ? `<p class="err" role="alert">${esc(msg)}</p>` : "";
+  // Daxil olmuş, amma bu telefonda açar yoxdur (məs. köhnə versiyadan qalan giriş): şifrə soruşulur
+  function showUnlock(u, msg) {
+    lockScreen(`<p class="lead">Məlumatınız şifrələnib. Açmaq üçün şifrənizi yazın.</p>
+      <label class="field"><span>Şifrə</span><input id="u-pass" class="input" type="password" autocomplete="current-password"></label>
+      ${errP(msg)}
+      <button class="primary" type="submit">Aç</button>
+      <button class="link" type="button" data-out>Çıxış</button>`, async form => {
+      const pass = $("#u-pass").value;
+      if (!pass) return showUnlock(u, "Şifrəni yazın.");
+      try { await u.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(u.email, pass)); }
+      catch (e) { return showUnlock(u, authError(e)); }
+      store.unlock(u, pass);
+    });
+  }
+  // Şifrə sıfırlanıb: köhnə açar yalnız bərpa kodu (və ya köhnə şifrə) ilə açılır
+  function showRecover(u, pass, k, msg) {
+    lockScreen(`<p class="lead">Şifrəniz dəyişdirilib. Məlumatınızı açmaq üçün <b>bərpa kodunu</b> yazın. Köhnə şifrəni xatırlayırsınızsa, onu da yaza bilərsiniz.</p>
+      <label class="field"><span>Bərpa kodu və ya köhnə şifrə</span><input id="r-code" class="input" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX"></label>
+      ${errP(msg)}
+      <button class="primary" type="submit">Aç</button>
+      <button class="link" type="button" data-forgot>Kodum yoxdur</button>
+      <button class="link" type="button" data-out>Çıxış</button>`, async () => {
+      const v = $("#r-code").value.trim();
+      const raw = (await tryUnwrap(k, v, "rc")) || (await tryUnwrap(k, v, "pw"));
+      if (!raw) return showRecover(u, pass, k, "Kod düzgün deyil. Yenidən yoxlayın.");
+      try { await keysRef(u.uid).update({ pw: await seal(await kdf(pass, k.salt + "pw"), raw) }); }
+      catch (e) { return showRecover(u, pass, k, "İnternet bağlantısını yoxlayın."); }
+      store.useKey(u, raw, true);
+    });
+    showForgot = () => lockScreen(`<p class="lead">Bərpa kodu və köhnə şifrə olmadan şifrəli məlumatı heç kim, o cümlədən tətbiqin sahibi də aça bilməz.</p>
+      <p class="lead">Kodu tapmaq mümkün deyilsə, hesabı boş başlada bilərsiniz. Bu zaman köhnə əməliyyatların hamısı silinir.</p>
+      <label class="field"><span>Təsdiq üçün SİL yazın</span><input id="w-ok" class="input" autocomplete="off"></label>
+      <button class="primary" type="submit">Hesabı boş başlat</button>
+      <button class="link" type="button" data-back>Geri, kodu yazım</button>`, async () => {
+      if ($("#w-ok").value.trim().toLocaleUpperCase("az") !== "SİL" && $("#w-ok").value.trim().toUpperCase() !== "SIL") return showRecover(u, pass, k, "Silinmədi: təsdiq sözü yazılmadı.");
+      try {
+        const q = await store.fb.fs.collection(`users/${u.uid}/records`).get();
+        await Promise.all(q.docs.map(d => d.ref.delete()));
+        await store.fb.fs.doc(`users/${u.uid}`).delete();
+        await keysRef(u.uid).delete();
+      } catch (e) { return showRecover(u, pass, k, "Silmək alınmadı. İnternet bağlantısını yoxlayın."); }
+      store.unlock(u, pass);
+    });
+    lockBack = () => showRecover(u, pass, k);
+  }
+  let showForgot = () => {}, lockBack = () => {};
+  // Yeni bərpa kodunu göstərmək (bir dəfə)
+  function showCode(code, then, again) {
+    lockScreen(`<p class="lead">${again ? "Yeni bərpa kodunuz hazırdır. Köhnə kod artıq işləmir." : "Məlumatınız artıq şifrələnir: onu sizdən başqa heç kim, tətbiqin sahibi də görə bilməz."}</p>
+      <div class="code">${code}</div>
+      <button class="secondary" type="button" data-copy="${code}">Kopyala</button>
+      <p class="lead">Bu <b>bərpa kodunu</b> yazıb təhlükəsiz yerdə saxlayın. Şifrənizi unudub sıfırlasanız, məlumatınızı yalnız bu kodla aça biləcəksiniz. Kodu heç kimə verməyin.</p>
+      <button class="primary" type="submit">Kodu saxladım, davam et</button>`, () => { hideAuth(); then(); });
+  }
   const hideAuth = () => { $("#auth").hidden = true; $("#auth").innerHTML = ""; };
 
   const store = {
@@ -621,17 +718,90 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     // Giriş vəziyyəti dəyişəndə: daxil olubsa həmin hesabın məlumatını aç, çıxıbsa giriş ekranını göstər
     initCloud(fb) {
       this.fb = fb; this.cloud = true;
-      fb.auth.onAuthStateChanged(u => {
+      fb.auth.onAuthStateChanged(async u => {
         this.stop();
-        this.user = u || null;
+        this.user = u || null; this.key = null; this.rawKey = null;
         state.ready = false; state.records = []; render();
         if (!u) return showAuth("login");
-        hideAuth();
-        this.initDb({ doc: p => fb.fs.doc(p) }, u.uid, `users/${u.uid}`);
+        const pass = this.pendingPass; this.pendingPass = null;
+        let raw = null;
+        try { const v = localStorage.getItem(KEY_LS + u.uid); if (v) raw = unb64(v); } catch (e) {}
+        if (raw) { if (pass) this.syncPass(u, raw, pass).catch(() => {}); return this.useKey(u, raw); }
+        if (pass) return this.unlock(u, pass);
+        showUnlock(u);
       });
     },
+    // Şifrə ilə açarı açmaq; hesabda hələ açar yoxdursa, yaradıb köhnə məlumatı şifrələmək
+    async unlock(u, pass) {
+      lockScreen(`<p class="lead">Məlumat açılır…</p>`, () => {});
+      let snap;
+      try { snap = await keysRef(u.uid).get(); } catch (e) { return showUnlock(u, "İnternet bağlantısı lazımdır. Yenidən cəhd edin."); }
+      if (snap.exists) {
+        const k = snap.data();
+        const raw = await tryUnwrap(k, pass, "pw");
+        return raw ? this.useKey(u, raw, true) : showRecover(u, pass, k);
+      }
+      const raw = crypto.getRandomValues(new Uint8Array(32));
+      const salt = b64(crypto.getRandomValues(new Uint8Array(16)));
+      const code = newRecoveryCode();
+      try {
+        await keysRef(u.uid).set({ v: 1, salt, pw: await seal(await kdf(pass, salt + "pw"), raw), rc: await seal(await kdf(normCode(code), salt + "rc"), raw) });
+      } catch (e) { return showUnlock(u, "Açar yaradılmadı. İnternet bağlantısını yoxlayın."); }
+      showCode(code, () => this.useKey(u, raw, true));
+    },
+    async useKey(u, raw, sweep) {
+      if (this.user !== u) return;
+      try { localStorage.setItem(KEY_LS + u.uid, b64(raw)); } catch (e) {}
+      this.rawKey = raw; this.key = await importDek(raw);
+      hideAuth();
+      this.initDb({ doc: p => this.fb.fs.doc(p) }, u.uid, `users/${u.uid}`);
+      if (sweep) this.encryptOld(u).catch(() => {});
+    },
+    // Girişdə bir dəfə: buludda şifrəsiz qalan yazılar və əsas sənəd şifrələnir
+    async encryptOld(u) {
+      const fs = this.fb.fs;
+      const [q, m] = await Promise.all([fs.collection(`users/${u.uid}/records`).get({ source: "server" }), fs.doc(`users/${u.uid}`).get({ source: "server" })]);
+      if (this.user !== u) return;
+      await Promise.all(q.docs.filter(d => !d.data().enc).map(d => this.putRec(d.id, d.data())));
+      if (m.exists && !m.data().enc) { const d = m.data(); await fs.doc(`users/${u.uid}`).set({ ...(await this.wrap(d)), catsVersion: d.catsVersion || 1 }); }
+    },
+    // Parol e-poçtla sıfırlanıbsa, bu telefonda saxlanan açar yeni parolla yenidən bağlanır: kod lazım olmur
+    async syncPass(u, raw, pass) {
+      const snap = await keysRef(u.uid).get({ source: "server" });
+      if (!snap.exists) return;
+      const k = snap.data();
+      if (await tryUnwrap(k, pass, "pw")) return;
+      await keysRef(u.uid).update({ pw: await seal(await kdf(pass, k.salt + "pw"), raw) });
+    },
+    // Yeni bərpa kodu: köhnə kod etibarsız olur
+    async newCode() {
+      if (!this.rawKey || !this.user) return;
+      if (!confirm("Yeni bərpa kodu yaradılsın? Köhnə kod artıq işləməyəcək.")) return;
+      const code = newRecoveryCode();
+      try {
+        const k = (await keysRef(this.user.uid).get()).data();
+        await keysRef(this.user.uid).update({ rc: await seal(await kdf(normCode(code), k.salt + "rc"), this.rawKey) });
+      } catch (e) { return toast("Alınmadı. İnternet bağlantısını yoxlayın."); }
+      showCode(code, () => {}, true);
+    },
+    // Şifrələmə (hesab açarı varsa): sənədə yalnız şifrəli mətn yazılır
+    async wrap(obj) { return this.key ? { enc: await sealJson(this.key, obj) } : obj; },
+    async putRec(id, body) { return this.recs.doc(id).set(await this.wrap(body)); },
+    recCache: new Map(),
+    async readRec(d) {
+      const x = d.data();
+      if (!x.enc) return { ...x, id: d.id };
+      const c = this.recCache.get(d.id);
+      if (c && c.ct === x.enc.ct) return c.rec;
+      try { const rec = { ...(await unsealJson(this.key, x.enc)), id: d.id }; this.recCache.set(d.id, { ct: x.enc.ct, rec }); return rec; }
+      catch (e) { return null; }
+    },
     stop() { this.unsubs.forEach(f => typeof f === "function" && f()); this.unsubs = []; this.migrated = false; },
-    async signOut() { this.stop(); try { await this.fb.auth.signOut(); } catch (e) {} },
+    async signOut() {
+      this.stop();
+      this.key = null; this.rawKey = null; this.recCache.clear();
+      try { await this.fb.auth.signOut(); } catch (e) {}
+    },
     // Yeni (boş) hesaba bu telefondakı köhnə məlumat köçürülür. Hər telefon yalnız bir hesaba köçürür.
     localSeed() {
       let data = null, done = null;
@@ -665,9 +835,17 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
       this.recs = this.base.collection("records");
       let gotCats = false, gotRecs = false;
       const done = () => { if (gotCats && gotRecs && !state.ready) { state.ready = true; } render(); };
-      const unsubMeta = this.base.onSnapshot(s => {
+      let metaSeq = 0, recSeq = 0;
+      const unsubMeta = this.base.onSnapshot(async s => {
+        const my = ++metaSeq;
         if (s.exists) {
-          const d = s.data();
+          let d = s.data();
+          const plain = !d.enc;
+          if (d.enc) {
+            if (!this.key) return toast("Məlumat şifrəlidir, amma açar tapılmadı. Çıxıb yenidən daxil olun.");
+            try { d = await unsealJson(this.key, d.enc); } catch (e) { return toast("Məlumatı açmaq alınmadı."); }
+            if (my !== metaSeq) return;
+          }
           state.categories = d.categories || [];
           state.reminders = d.reminders || [];
           state.done = d.done || {};
@@ -675,7 +853,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
           state.cards = normCards(d.cards, d.cardOpening);
           state.catsVersion = d.catsVersion || 1;
           gotCats = true;
-          if (!s.metadata.fromCache && !this.migrated) { this.migrated = true; if ([this.dropOldDefaults(), upgradeCats()].some(Boolean)) this.saveMeta(); }
+          if (!s.metadata.fromCache && !this.migrated) { this.migrated = true; if ([this.dropOldDefaults(), upgradeCats()].some(Boolean) || (plain && this.key)) this.saveMeta(); }
           done();
         }
         else if (!s.metadata.fromCache) {
@@ -690,15 +868,20 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
           gotCats = true; done();
           this.saveMeta();
           if (seed) {
-            (seed.records || []).forEach(r => { const { id: rid, ...body } = r; this.recs.doc(rid).set(body).catch(() => {}); });
+            (seed.records || []).forEach(r => { const { id: rid, ...body } = r; this.putRec(rid, body).catch(() => {}); });
             try { localStorage.setItem(UPLOADED_KEY, id); } catch (e) {}
             toast(`Telefondakı ${(seed.records || []).length} əməliyyat hesaba köçürüldü`);
           }
         }
       }, e => this.fail(e));
-      const unsubRecs = this.recs.onSnapshot(q => {
-        state.records = q.docs.map(d => ({ ...d.data(), id: d.id }));
+      const unsubRecs = this.recs.onSnapshot(async q => {
+        const my = ++recSeq;
+        const list = await Promise.all(q.docs.map(d => this.readRec(d)));
+        if (my !== recSeq) return;
+        state.records = list.filter(Boolean);
         gotRecs = true; done();
+        // Köhnə (şifrəsiz) yazılar bir dəfə şifrələnib yenidən yazılır
+        if (this.key && !q.metadata.fromCache) q.docs.forEach(d => { if (!d.data().enc && !d.metadata.hasPendingWrites) { const { id, ...body } = d.data(); this.putRec(d.id, body).catch(() => {}); } });
       }, e => this.fail(e));
       this.unsubs = [unsubMeta, unsubRecs];
     },
@@ -716,7 +899,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
       if (Array.isArray(seed.cards)) state.cards = addMissing(state.cards, normCards(seed.cards));
       const have = new Set(state.records.map(r => r.id));
       const add = (seed.records || []).filter(r => !have.has(r.id));
-      add.forEach(r => { const { id, ...body } = r; this.recs.doc(id).set(body).catch(() => {}); });
+      add.forEach(r => { const { id, ...body } = r; this.putRec(id, body).catch(() => {}); });
       this.saveMeta();
       try { localStorage.setItem(UPLOADED_KEY, this.user.uid); } catch (e) {}
       toast(`${add.length} əməliyyat hesaba əlavə edildi`);
@@ -736,7 +919,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
       render();
       const keep = new Set(d.records.map(r => r.id));
       old.filter(r => !keep.has(r.id)).forEach(r => this.recs.doc(r.id).delete().catch(() => {}));
-      d.records.forEach(r => { const { id, ...body } = r; this.recs.doc(id).set(body).catch(() => {}); });
+      d.records.forEach(r => { const { id, ...body } = r; this.putRec(id, body).catch(() => {}); });
       this.saveMeta();
     },
     async saveRecord(r) {
@@ -745,7 +928,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
       render();
       if (this.mode === "local") return this.persistLocal();
       const { id, ...body } = r;
-      try { await this.recs.doc(id).set(body); } catch (e) { toast(e?.code === "quota_exceeded" ? "Yaddaş limiti dolub." : "Yadda saxlamaq alınmadı. Yenidən cəhd edin."); }
+      try { await this.putRec(id, body); } catch (e) { toast(e?.code === "quota_exceeded" ? "Yaddaş limiti dolub." : "Yadda saxlamaq alınmadı. Yenidən cəhd edin."); }
     },
     async deleteRecord(id) {
       state.records = state.records.filter(r => r.id !== id);
@@ -763,7 +946,9 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     async saveMeta() {
       render();
       if (this.mode === "local") return this.persistLocal();
-      try { await this.base.set({ categories: state.categories, reminders: state.reminders, done: state.done, plan: state.plan, cards: state.cards, cardOpening: state.cards[0]?.opening || 0, catsVersion: state.catsVersion }); }
+      const meta = { categories: state.categories, reminders: state.reminders, done: state.done, plan: state.plan, cards: state.cards, cardOpening: state.cards[0]?.opening || 0, catsVersion: state.catsVersion };
+      // catsVersion şifrəsiz də qalır ki, köhnə versiya açılsa, boş məlumatı "yeniləyib" üstünə yazmasın
+      try { await this.base.set(this.key ? { ...(await this.wrap(meta)), catsVersion: state.catsVersion } : meta); }
       catch (e) { toast("Yadda saxlamaq alınmadı. Yenidən cəhd edin."); }
     },
     saveCategories(cats) { state.categories = cats; return this.saveMeta(); },
@@ -1532,7 +1717,8 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
         <p class="label">Hesab</p>
         <div class="acct"><b>${esc(displayName(store.user.email))}</b><button class="secondary" data-logout>Çıxış</button></div>
         ${(store.user.email || "").endsWith(USER_DOMAIN) ? `<button class="secondary" style="margin-top:10px;width:100%" data-addemail>E-poçt əlavə et (şifrə bərpası üçün)</button>` : ""}
-        <p class="note" style="text-align:left;margin:10px 0 0">Məlumatlarınız hesabınızda saxlanılır. İstənilən telefondan bu adla daxil olub görə bilərsiniz.</p>
+        ${store.key ? `<button class="secondary" style="margin-top:10px;width:100%" data-newcode>Yeni bərpa kodu yarat</button>` : ""}
+        <p class="note" style="text-align:left;margin:10px 0 0">${store.key ? "Məlumatlarınız şifrələnib: onu yalnız siz görürsünüz, tətbiqin sahibi də görə bilməz. İstənilən telefondan bu adla daxil ola bilərsiniz." : "Məlumatlarınız hesabınızda saxlanılır. İstənilən telefondan bu adla daxil olub görə bilərsiniz."}</p>
       </section>` : ""}
       ${store.mode === "local" || store.cloud ? `
       <section class="card" style="margin-top:8px">
@@ -1979,6 +2165,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     else if (b.hasAttribute("data-restore")) $("#restoreFile").click();
     else if (b.hasAttribute("data-logout")) store.signOut();
     else if (b.hasAttribute("data-addemail")) openAddEmail();
+    else if (b.hasAttribute("data-newcode")) store.newCode();
     else if (b.hasAttribute("data-mergelocal")) store.mergeLocal();
   });
 
