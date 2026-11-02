@@ -531,14 +531,14 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     box.innerHTML = `<form class="box" novalidate>
       <h1>Büdcəm</h1>
       <p class="lead">${reg ? "Yeni hesab yaradın. Məlumatlarınızı yalnız siz görəcəksiniz." : "Hesabınıza daxil olun."}</p>
-      <label class="field"><span>İstifadəçi adı və ya e-poçt</span><input id="a-user" class="input" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Məsələn: elsen"></label>
+      <label class="field"><span>${reg ? "E-poçt (tövsiyə olunur) və ya istifadəçi adı" : "E-poçt və ya istifadəçi adı"}</span><input id="a-user" class="input" type="email" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="${reg ? "Məsələn: ad@gmail.com" : "E-poçt və ya ad"}"></label>
       <label class="field"><span>Şifrə</span><input id="a-pass" class="input" type="password" autocomplete="${reg ? "new-password" : "current-password"}" placeholder="Ən azı 6 simvol"></label>
       ${reg ? `<label class="field"><span>Şifrəni təkrarlayın</span><input id="a-pass2" class="input" type="password" autocomplete="new-password"></label>` : ""}
       ${msg ? `<p class="err" role="alert">${esc(msg)}</p>` : ""}
       <button class="primary" type="submit">${reg ? "Qeydiyyatdan keç" : "Daxil ol"}</button>
       <button class="link" type="button" data-authmode="${reg ? "login" : "register"}">${reg ? "Hesabım var, daxil olum" : "Hesabım yoxdur, qeydiyyat"}</button>
       ${reg ? "" : `<button class="link" type="button" data-reset>Şifrəni unutdum</button>`}
-      <p class="note">İstifadəçi adı ilə qeydiyyat olsanız, şifrəni unutduqda bərpa etmək olmur. Şifrə bərpası üçün e-poçtla qeydiyyatdan keçin.</p>
+      <p class="note">E-poçtla qeydiyyatdan keçsəniz, şifrəni unutduqda "Şifrəni unutdum" ilə e-poçtunuza bərpa linki gələcək. Yalnız istifadəçi adı ilə açılan hesabda şifrə bərpası olmur.</p>
     </form>`;
     box.hidden = false;
     const form = box.querySelector("form");
@@ -559,11 +559,44 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
       if (b.dataset.authmode) showAuth(b.dataset.authmode);
       else if (b.hasAttribute("data-reset")) {
         const user = $("#a-user").value.trim();
-        if (!user.includes("@")) return showAuth(mode, "Şifrə bərpası yalnız e-poçtla qeydiyyat olan hesablar üçündür. E-poçtunuzu yazın.");
-        try { await store.fb.auth.sendPasswordResetEmail(user); showAuth(mode, "Şifrə bərpası üçün e-poçtunuza məktub göndərildi."); }
+        if (!user.includes("@")) return showAuth(mode, "Şifrə bərpası üçün yuxarıdakı xanaya e-poçtunuzu yazıb yenidən basın.");
+        try { await store.fb.auth.sendPasswordResetEmail(user); showAuth(mode, "Əgər bu e-poçtla hesab varsa, bərpa linki göndərildi. Spam qovluğunu da yoxlayın."); }
         catch (e) { showAuth(mode, authError(e)); }
       }
     });
+  }
+  // İstifadəçi adı ilə açılmış hesaba həqiqi e-poçt bağlamaq: təsdiq linkinə basandan sonra giriş e-poçtla olur
+  function openAddEmail() {
+    const f = { email: "", pass: "", msg: "" };
+    const draw = () => {
+      sheet(`
+        <div class="sheet-head">
+          <button class="link" data-close>Ləğv et</button>
+          <h2>E-poçt əlavə et</h2>
+          <button class="link save" data-save>Göndər</button>
+        </div>
+        <div class="stack">
+          <label class="field"><span>E-poçtunuz</span><input id="e-mail" class="input" type="email" autocapitalize="none" value="${esc(f.email)}" placeholder="ad@gmail.com"></label>
+          <label class="field"><span>İndiki şifrəniz</span><input id="e-pass" class="input" type="password" autocomplete="current-password"></label>
+          ${f.msg ? `<p class="note" style="text-align:left;color:var(--expense)">${esc(f.msg)}</p>` : ""}
+          <p class="note">E-poçtunuza təsdiq linki gələcək. Linkə basandan sonra tətbiqə bu e-poçt və eyni şifrə ilə daxil olacaqsınız, məlumatlarınız dəyişmir. Şifrəni unutsanız, bərpa linki bu e-poçta gələcək.</p>
+        </div>`);
+      $("#e-mail").addEventListener("input", e => { f.email = e.target.value.trim(); });
+      $("#e-pass").addEventListener("input", e => { f.pass = e.target.value; });
+    };
+    sheetHandler = async e => {
+      const t = e.target.closest("button"); if (!t || !t.hasAttribute("data-save")) return;
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.email)) { f.msg = "E-poçtu düzgün yazın."; return draw(); }
+      if (!f.pass) { f.msg = "İndiki şifrənizi yazın."; return draw(); }
+      t.disabled = true;
+      try {
+        const u = store.fb.auth.currentUser;
+        await u.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(u.email, f.pass));
+        await u.verifyBeforeUpdateEmail(f.email);
+        closeSheet(); toast("Təsdiq linki e-poçtunuza göndərildi");
+      } catch (err) { f.msg = authError(err); draw(); }
+    };
+    draw();
   }
   const hideAuth = () => { $("#auth").hidden = true; $("#auth").innerHTML = ""; };
 
@@ -1498,6 +1531,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
       <section class="card" style="margin-top:8px">
         <p class="label">Hesab</p>
         <div class="acct"><b>${esc(displayName(store.user.email))}</b><button class="secondary" data-logout>Çıxış</button></div>
+        ${(store.user.email || "").endsWith(USER_DOMAIN) ? `<button class="secondary" style="margin-top:10px;width:100%" data-addemail>E-poçt əlavə et (şifrə bərpası üçün)</button>` : ""}
         <p class="note" style="text-align:left;margin:10px 0 0">Məlumatlarınız hesabınızda saxlanılır. İstənilən telefondan bu adla daxil olub görə bilərsiniz.</p>
       </section>` : ""}
       ${store.mode === "local" || store.cloud ? `
@@ -1944,6 +1978,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     }
     else if (b.hasAttribute("data-restore")) $("#restoreFile").click();
     else if (b.hasAttribute("data-logout")) store.signOut();
+    else if (b.hasAttribute("data-addemail")) openAddEmail();
     else if (b.hasAttribute("data-mergelocal")) store.mergeLocal();
   });
 
