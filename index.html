@@ -246,14 +246,14 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 
 .sheet-bg { position: fixed; inset: 0; z-index: 30; background: rgba(0, 0, 0, .38); display: flex; align-items: flex-end; justify-content: center; }
 .sheet {
-  width: 100%; max-width: 560px; max-height: 92vh; max-height: 92dvh; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; background: var(--bg); border-radius: 20px 20px 0 0;
+  width: 100%; max-width: 560px; max-height: 92vh; max-height: 92dvh; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; background: var(--bg); border-radius: 20px 20px 0 0;
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-block: 8px calc(20px + env(safe-area-inset-bottom, 0px));
+  padding-block: 0 calc(20px + env(safe-area-inset-bottom, 0px));
   animation: up .22s ease-out;
 }
 @keyframes up { from { transform: translateY(24px); } to { transform: none; } }
 @media (prefers-reduced-motion: reduce) { .sheet { animation: none; } }
-.sheet-head { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding-block: 8px 12px; position: sticky; top: 0; background: var(--bg); z-index: 1; }
+.sheet-head { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding-block: 16px 12px; position: sticky; top: 0; background: var(--bg); z-index: 1; }
 .sheet-head h2 { margin: 0; font-size: 17px; font-weight: 600; }
 .link { border: 0; background: transparent; color: var(--accent); font-size: 16px; padding: 6px 0; justify-self: start; }
 .link.save { justify-self: end; font-weight: 600; }
@@ -261,6 +261,8 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field > span:not(.pw) { font-size: 13px; color: var(--muted); font-weight: 500; margin-left: 4px; }
+.input { min-width: 0; max-width: 100%; display: block; }
+input[type=date].input { -webkit-appearance: none; appearance: none; min-height: 48px; text-align: left; }
 .input { width: 100%; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 12px 14px; font-size: 16px; }
 .amount-wrap { display: flex; align-items: baseline; gap: 6px; background: var(--surface); border-radius: 14px; padding: 12px 16px; border: 1px solid var(--line); }
 .amount-wrap input { border: 0; background: transparent; font-family: var(--font-display); font-size: 36px; font-weight: 700; width: 100%; min-width: 0; outline: none; }
@@ -280,7 +282,9 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .picker[aria-expanded="true"] .chev { transform: rotate(90deg); }
 .picker .placeholder { color: var(--muted); }
 .pick-bg { z-index: 35; }
-.sheet.pick { height: 92vh; height: 92dvh; }
+.sheet.pick { height: 92vh; height: 92dvh; display: flex; flex-direction: column; overflow: hidden; padding-bottom: 0; }
+.sheet.pick .sheet-head, .sheet.pick #pick-q { flex: none; }
+.sheet.pick #pick-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; margin-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
 .sheet.pick .row[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
 .check { color: var(--accent); font-weight: 700; }
 .card-toggle { display: flex; justify-content: space-between; align-items: center; width: 100%; border: 0; background: transparent; padding: 0; text-align: left; }
