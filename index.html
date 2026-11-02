@@ -1858,8 +1858,14 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   const PERSON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>`;
   const avatarInner = big => state.profile.photo ? `<img src="${esc(state.profile.photo)}" alt="">` : initials() ? `<b>${esc(initials())}</b>` : big ? PERSON_SVG : GEAR_SVG;
   // Yuxarıdakı ayarlar düyməsi: profil şəkli, yoxdursa adın baş hərfləri, o da yoxdursa dişli
-  // Yuxarıdakı düymə həmişə dişli ikonudur; profil şəkli Ayarların içində görünür
-  function paintAvatar() {}
+  // Yuxarıdakı düymə: profil şəkli varsa şəkil, yoxdursa dişli ikonu
+  function paintAvatar() {
+    const b = $("#settingsBtn"); if (!b) return;
+    const want = state.profile.photo || "";
+    if (b.dataset.photo === want && b.firstElementChild) return;
+    b.dataset.photo = want;
+    b.innerHTML = want ? `<img src="${esc(want)}" alt="">` : GEAR_SVG;
+  }
   function settingsAction(b) {
     if (b.hasAttribute("data-backup")) {
       const data = { app: "budcem", version: 1, saved: new Date().toISOString(), categories: state.categories, records: state.records, reminders: state.reminders, done: state.done, plan: state.plan, cards: state.cards, profile: state.profile, catsVersion: state.catsVersion };
