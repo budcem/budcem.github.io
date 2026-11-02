@@ -5,7 +5,7 @@ Sadə şəxsi xərc və gəlir izləmə PWA-sı. İstifadəçi Azərbaycan dilin
 ## Struktur
 - `src/app.html` — tətbiqin bütün kodu (HTML + CSS + JS, bir fayl). Dəyişiklikləri burada edin.
 - `src/build.py` — `src/app.html`-dən kökdəki `index.html`-i yaradır. Hər dəyişiklikdən sonra `python3 src/build.py` işlədin və hər iki faylı commit edin.
-- `index.html`, `manifest.json`, `sw.js`, ikonlar — GitHub Pages-də yayımlanan fayllar (main budağı, kök qovluq): https://elshanmov47.github.io/budcem/
+- `index.html`, `manifest.json`, `sw.js`, ikonlar — GitHub Pages-də yayımlanan fayllar (main budağı, kök qovluq): https://budcem.github.io/ (repo budcem/budcem.github.io; köhnə elshanmov47/budcem ünvanı 2026-11-02 köçürüldü)
 - `sw.js` — oflayn işləmə üçün keş. Faylların siyahısı dəyişəndə `CACHE` versiyasını artırın.
 
 ## Məlumat
