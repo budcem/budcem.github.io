@@ -93,6 +93,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .acc b { font-size: 15px; white-space: nowrap; }
 .acc b.neg { color: var(--expense); }
 .xfer { border: 0; border-radius: 12px; padding: 0 10px; background: var(--accent); color: var(--accent-fg); font-weight: 600; font-size: 13px; white-space: nowrap; }
+textarea.input { resize: vertical; min-height: 120px; font: inherit; font-size: 16px; line-height: 1.4; }
 .subsplit { font-size: 12px; color: var(--muted); margin-top: 4px; }
 .zoom { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 20px; }
 .zoom input { flex: 1; accent-color: var(--accent); }
@@ -1908,7 +1909,8 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
         </div>
         <input type="file" id="restoreFile" accept=".json,application/json" hidden>
       </section>` : ""}
-      ${store.cloud && store.user ? `<button class="secondary danger" data-logout>Hesabdan çıxış</button>` : ""}
+      ${store.cloud && store.user ? `<button class="secondary" data-feedback>✉︎ Bizə müraciət edin</button>
+      <button class="secondary danger" data-logout>Hesabdan çıxış</button>` : ""}
       </div>`);
     sheetHandler = e => { const b = e.target.closest("button"); if (b) settingsAction(b); };
     $("#pf-name").addEventListener("change", e => { state.profile = { ...state.profile, name: e.target.value.trim() }; store.saveMeta(); paintAvatar(); });
@@ -1997,12 +1999,51 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
     else if (b.hasAttribute("data-logout")) { closeSheet(); store.signOut(); }
     else if (b.hasAttribute("data-addemail")) openAddEmail();
     else if (b.hasAttribute("data-changepass")) openChangePass();
+    else if (b.hasAttribute("data-feedback")) openFeedback();
     else if (b.id === "themeBtn") window.toggleMode();
     else if (b.hasAttribute("data-photo")) $("#photoFile")?.click();
     else if (b.hasAttribute("data-delphoto")) { const { photo, ...rest } = state.profile; state.profile = rest; store.saveMeta(); openSettings(); paintAvatar(); }
     else if (b.hasAttribute("data-newcode")) { closeSheet(); store.newCode(); }
     else return false;
     return true;
+  }
+  // Rəy və təkliflər: Firestore "feedback" kolleksiyasına yazılır (yalnız əlavə etmək olar, oxumaq yox).
+  // Bu mesaj şifrələnmir, çünki onu tətbiqin sahibi Firebase konsolunda oxuyur.
+  function openFeedback() {
+    const f = { kind: "Təklif", text: "", msg: "" };
+    const KINDS = ["Təklif", "Xəta", "Sual"];
+    const draw = () => {
+      sheet(`
+        <div class="sheet-head">
+          <button class="link" data-back>‹ Geri</button>
+          <h2>Bizə müraciət edin</h2>
+          <button class="link save" data-send ${f.text.trim().length >= 3 ? "" : "disabled"}>Göndər</button>
+        </div>
+        <div class="stack">
+          <div class="seg three">${KINDS.map(k => `<button data-fkind="${k}" aria-pressed="${f.kind === k}">${k}</button>`).join("")}</div>
+          <label class="field"><span>Mesajınız</span><textarea id="fb-text" class="input" rows="6" maxlength="1500" placeholder="Nəyi bəyəndiniz, nə çatışmır, nə əlavə edək?">${esc(f.text)}</textarea></label>
+          ${f.msg ? `<p class="note" style="text-align:left;color:var(--expense)">${esc(f.msg)}</p>` : ""}
+          <p class="note">Mesajı tətbiqin sahibi oxuyacaq. Cavab verə bilməsi üçün hesabınızın adı (${esc(displayName(store.user?.email || ""))}) da göndərilir. Xərc və gəlirləriniz göndərilmir.</p>
+        </div>`);
+      const ta = $("#fb-text");
+      ta.addEventListener("input", e => { f.text = e.target.value; $("[data-send]").disabled = f.text.trim().length < 3; });
+    };
+    sheetHandler = async e => {
+      const t = e.target.closest("button"); if (!t) return;
+      if (t.hasAttribute("data-back")) return openSettings();
+      if (t.dataset.fkind) { f.kind = t.dataset.fkind; return draw(); }
+      if (!t.hasAttribute("data-send") || f.text.trim().length < 3) return;
+      t.disabled = true;
+      try {
+        await store.fb.fs.collection("feedback").add({
+          kind: f.kind, text: f.text.trim().slice(0, 1500), uid: store.user.uid,
+          user: displayName(store.user.email), name: state.profile.name || "",
+          created: firebase.firestore.FieldValue.serverTimestamp(), ua: navigator.userAgent.slice(0, 200)
+        });
+        closeSheet(); toast("Təşəkkürlər! Mesajınız göndərildi");
+      } catch (err) { f.msg = err?.code === "permission-denied" ? "Göndərmək hələ mümkün deyil (server ayarı tamamlanmayıb). Bir az sonra yenidən yoxlayın." : "Göndərmək alınmadı. İnternet bağlantısını yoxlayın."; draw(); }
+    };
+    draw();
   }
   // Şifrəni dəyişmək: köhnə şifrə ilə təsdiq, sonra məlumatın açarı yeni şifrə ilə bağlanır
   function openChangePass() {
