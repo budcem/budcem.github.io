@@ -451,6 +451,17 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   const LS_KEY = "budcem.v1";
   // Son ehtiyat nüsxənin vaxtı: 7 gündən çox keçibsə Xülasədə xatırladılır
   const BACKUP_KEY = "budcem.lastBackup";
+  // Bulud hesabında: bu telefonda hesaba köçürülməmiş köhnə məlumat varsa xatırlat
+  function localMergeNag() {
+    if (!store.cloud || !store.user) return "";
+    const seed = store.localSeed();
+    const n = seed ? (seed.records || []).filter(r => !state.records.some(x => x.id === r.id)).length : 0;
+    if (!n) return "";
+    return `<section class="card backup-nag">
+      <p><b>Bu telefonda köhnə məlumat var</b>Hesabınıza hələ əlavə olunmamış ${n} əməliyyat tapıldı. Əlavə etsəniz, hesabınızdakı heç nə silinməyəcək.</p>
+      <button class="primary" data-mergelocal>Hesaba əlavə et</button>
+    </section>`;
+  }
   function backupNag() {
     if (store.mode !== "local" || !state.records.length) return "";
     let last = 0;
@@ -645,6 +656,21 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     fail(e) {
       if (e?.code === "permission-denied") toast("Bazaya giriş qadağandır: Firestore qaydasını yoxlayın.");
       else toast("Məlumat bazası ilə əlaqə kəsildi. Səhifəni yeniləyin.");
+    },
+    // Hesab artıq doludursa (məs. başqa telefonda yaradılıb), bu telefondakı köhnə məlumat özü köçmür.
+    // İstifadəçi düyməyə basanda çatışmayan yazılar, maddələr, kartlar və xatırladıcılar hesaba əlavə olunur; heç nə silinmir.
+    mergeLocal() {
+      const seed = this.localSeed(); if (!seed) return;
+      const addMissing = (cur, extra) => [...cur, ...(extra || []).filter(x => x && !cur.some(c => c.id === x.id))];
+      state.categories = addMissing(state.categories, seed.categories);
+      state.reminders = addMissing(state.reminders, seed.reminders);
+      if (Array.isArray(seed.cards)) state.cards = addMissing(state.cards, normCards(seed.cards));
+      const have = new Set(state.records.map(r => r.id));
+      const add = (seed.records || []).filter(r => !have.has(r.id));
+      add.forEach(r => { const { id, ...body } = r; this.recs.doc(id).set(body).catch(() => {}); });
+      this.saveMeta();
+      try { localStorage.setItem(UPLOADED_KEY, this.user.uid); } catch (e) {}
+      toast(`${add.length} əməliyyat hesaba əlavə edildi`);
     },
     // Ehtiyat nüsxədən bərpa: köhnə yazılar nüsxədəkilərlə əvəzlənir
     async replaceAll(d) {
@@ -1225,6 +1251,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
           <div class="out"><small>Xərc</small><b class="num">${money(out)}</b></div>
         </div>
       </section>
+      ${localMergeNag()}
       ${backupNag()}
       ${toolTiles()}
       <section class="card">
@@ -1901,6 +1928,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     }
     else if (b.hasAttribute("data-restore")) $("#restoreFile").click();
     else if (b.hasAttribute("data-logout")) store.signOut();
+    else if (b.hasAttribute("data-mergelocal")) store.mergeLocal();
   });
 
   // Ehtiyat nüsxədən bərpa (telefon rejimində və bulud hesabında)
