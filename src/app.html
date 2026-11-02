@@ -150,6 +150,11 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 
 .chips { display: flex; gap: 8px; flex-wrap: wrap; }
 .chip { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 7px 14px; font-size: 15px; }
+.seg.three { grid-template-columns: repeat(3, 1fr); }
+.seg.three button { font-size: 14px; padding: 7px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.range-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.range-row label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); min-width: 0; }
+.range-row .input { min-width: 0; width: 100%; }
 .chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
 
 .day { scroll-margin-top: calc(env(safe-area-inset-top, 0px) + 70px); }
@@ -409,6 +414,8 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     done: {},
     plan: { income: 0, types: {}, cats: {} },
     cardOpening: 0,
+    // Xülasədə xərc bölgüsünün dövrü: "month" (seçilmiş ay), "all", "range"
+    sumPeriod: "month", sumFrom: "", sumTo: "",
     catsVersion: CATS_VERSION,
     planShowAll: false,
     ready: false
@@ -945,19 +952,30 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     const cardPaid = sum(list.filter(r => r.kind === "cardpay"));
     const bal = carryIn() + netOf(list);
 
-    const byType = TYPES.map(t => ({ ...t, total: sum(exp.filter(r => r.type === t.id)) }));
+    // Xərc başlıqları və maddələri seçilmiş dövr üzrə; Qalıq kartı isə həmişə ay üzrə
+    const m = state.month.getMonth();
+    const period = state.sumPeriod;
+    const periodRecs = period === "all" ? state.records
+      : period === "range" ? state.records.filter(r => r.date && (!state.sumFrom || r.date >= state.sumFrom) && (!state.sumTo || r.date <= state.sumTo))
+      : list;
+    const pexp = periodRecs.filter(r => r.kind === "expense");
+    const pout = sum(pexp);
+    const fmtD = d => d ? d.split("-").reverse().join(".") : "…";
+    const periodLabel = period === "all" ? "bütün zamanlar" : period === "range" ? `${fmtD(state.sumFrom)} – ${fmtD(state.sumTo)}` : `${MONTHS[m]} ${state.month.getFullYear()}`;
+
+    const byType = TYPES.map(t => ({ ...t, total: sum(pexp.filter(r => r.type === t.id)) }));
     // Donut: hər başlıq üçün bir qövs
     const R = 52, C = 2 * Math.PI * R;
     let off = 0;
-    const arcs = out > 0 ? byType.filter(t => t.total > 0).map(t => {
-      const len = t.total / out * C;
+    const arcs = pout > 0 ? byType.filter(t => t.total > 0).map(t => {
+      const len = t.total / pout * C;
       const gap = byType.filter(x => x.total > 0).length > 1 ? 2 : 0;
       const s = `<circle cx="66" cy="66" r="${R}" fill="none" stroke="${t.color}" stroke-width="16" stroke-dasharray="${Math.max(len - gap, 0.5)} ${C}" stroke-dashoffset="${-off}" transform="rotate(-90 66 66)"/>`;
       off += len; return s;
     }).join("") : `<circle cx="66" cy="66" r="${R}" fill="none" stroke="var(--surface-2)" stroke-width="16"/>`;
 
     const groups = {};
-    exp.forEach(r => { const n = catById(r.catId)?.name || "Kateqoriyasız"; groups[n] = (groups[n] || 0) + Number(r.amount); });
+    pexp.forEach(r => { const n = catById(r.catId)?.name || "Kateqoriyasız"; groups[n] = (groups[n] || 0) + Number(r.amount); });
     const cats = Object.entries(groups).sort((a, b) => b[1] - a[1]);
     const max = cats[0]?.[1] || 1;
 
@@ -973,19 +991,30 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
       ${backupNag()}
       ${toolTiles()}
       <section class="card">
-        <p class="label">Xərc başlıqları</p>
+        <div class="seg three" role="group" aria-label="Hesabat dövrü">
+          <button data-period="month" aria-pressed="${period === "month"}">${MONTHS[m]}</button>
+          <button data-period="all" aria-pressed="${period === "all"}">Hamısı</button>
+          <button data-period="range" aria-pressed="${period === "range"}">Tarix aralığı</button>
+        </div>
+        ${period === "range" ? `<div class="range-row">
+          <label>Başlanğıc<input class="input" type="date" data-rangefrom value="${esc(state.sumFrom)}"></label>
+          <label>Son<input class="input" type="date" data-rangeto value="${esc(state.sumTo)}"></label>
+        </div>` : ""}
+      </section>
+      <section class="card">
+        <p class="label">Xərc başlıqları · ${esc(periodLabel)}</p>
         <div class="donut-row">
           <svg class="donut" viewBox="0 0 132 132" role="img" aria-label="Xərc başlıqları üzrə bölgü">
             ${arcs}
             <text x="66" y="62" text-anchor="middle" font-size="11" opacity=".6">Cəmi</text>
-            <text x="66" y="80" text-anchor="middle" font-size="15" font-weight="700" class="num">${esc(money(out))}</text>
+            <text x="66" y="80" text-anchor="middle" font-size="15" font-weight="700" class="num">${esc(money(pout))}</text>
           </svg>
           <div class="legend">
             ${byType.map(t => `
               <div class="legend-item">
                 <span class="dot" style="background:${t.color}"></span>
                 <span>${t.title}</span>
-                <span class="num">${money(t.total)}<span class="pct">${out > 0 ? Math.round(t.total / out * 100) : 0}%</span></span>
+                <span class="num">${money(t.total)}<span class="pct">${pout > 0 ? Math.round(t.total / pout * 100) : 0}%</span></span>
               </div>`).join("")}
           </div>
         </div>
@@ -1000,7 +1029,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
             <div class="name">${esc(n)}<div class="track"><i style="width:${(v / max * 100).toFixed(1)}%"></i></div></div>
             <span class="num">${money(v)}</span>
           </div>`).join("")}</div>`
-        : `<div class="empty" style="padding:16px"><b>Bu ay xərc yoxdur</b>Aşağıdakı + düyməsi ilə ilk xərci əlavə edin.</div>`}
+        : `<div class="empty" style="padding:16px"><b>Bu dövrdə xərc yoxdur</b>Başqa dövr seçin və ya + düyməsi ilə xərc əlavə edin.</div>`}
       </section>
       ${monthsHtml()}
       ${store.mode === "local" ? `<p class="note">Məlumatlar bu cihazın brauzerində saxlanılır.</p>` : ""}`;
@@ -1551,6 +1580,11 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   $("#prevM").addEventListener("click", () => { state.month = new Date(state.month.getFullYear(), state.month.getMonth() - 1, 1); render(); });
   $("#nextM").addEventListener("click", () => { state.month = new Date(state.month.getFullYear(), state.month.getMonth() + 1, 1); render(); });
   $("#fab").addEventListener("click", () => state.ready && openRecordSheet(null));
+  $("#view").addEventListener("change", e => {
+    const t = e.target;
+    if (t.hasAttribute("data-rangefrom")) { state.sumFrom = t.value; render(); }
+    else if (t.hasAttribute("data-rangeto")) { state.sumTo = t.value; render(); }
+  });
   $("#view").addEventListener("click", e => {
     const b = e.target.closest("button"); if (!b) return;
     if (b.dataset.filter) { state.filter = b.dataset.filter; render(); }
@@ -1563,6 +1597,14 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     else if (b.dataset.month) { const [y, m] = b.dataset.month.split("-").map(Number); state.month = new Date(y, m - 1, 1); render(); window.scrollTo({ top: 0, behavior: "smooth" }); }
     else if (b.dataset.edit) { const r = state.records.find(x => x.id === b.dataset.edit); r && (r.kind === "cardpay" ? openCardPaySheet(r) : openRecordSheet(r)); }
     else if (b.hasAttribute("data-opencard")) openCardSheet();
+    else if (b.dataset.period) {
+      state.sumPeriod = b.dataset.period;
+      if (state.sumPeriod === "range" && !state.sumFrom && !state.sumTo) {
+        state.sumFrom = ymd(new Date(state.month.getFullYear(), state.month.getMonth(), 1));
+        state.sumTo = ymd(new Date());
+      }
+      render();
+    }
     else if (b.dataset.catkind) { state.catKind = b.dataset.catkind; render(); }
     else if (b.dataset.cat) { const c = catById(b.dataset.cat); c && openCatSheet(c); }
     else if (b.hasAttribute("data-newcat")) openCatSheet(null);
