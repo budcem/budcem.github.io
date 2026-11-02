@@ -242,7 +242,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 
 .sheet-bg { position: fixed; inset: 0; z-index: 30; background: rgba(0, 0, 0, .38); display: flex; align-items: flex-end; justify-content: center; }
 .sheet {
-  width: 100%; max-width: 560px; max-height: 92vh; overflow-y: auto; background: var(--bg); border-radius: 20px 20px 0 0;
+  width: 100%; max-width: 560px; max-height: 92vh; max-height: 92dvh; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; background: var(--bg); border-radius: 20px 20px 0 0;
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
   padding-block: 8px calc(20px + env(safe-area-inset-bottom, 0px));
   animation: up .22s ease-out;
@@ -275,8 +275,9 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .picker .chev { transition: transform .15s; font-size: 20px; line-height: 1; }
 .picker[aria-expanded="true"] .chev { transform: rotate(90deg); }
 .picker .placeholder { color: var(--muted); }
-.picklist { margin-top: 6px; max-height: 320px; overflow-y: auto; }
-.picklist .row[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+.pick-bg { z-index: 35; }
+.sheet.pick { height: 92vh; height: 92dvh; }
+.sheet.pick .row[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
 .check { color: var(--accent); font-weight: 700; }
 .card-toggle { display: flex; justify-content: space-between; align-items: center; width: 100%; border: 0; background: transparent; padding: 0; text-align: left; }
 .card-toggle .label { margin: 0; }
@@ -1951,10 +1952,6 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
                 <span class="chev">›</span>
               </button>
             </div>
-            ${catOpen ? `<div class="list picklist">${cats.map(c => `
-              <button class="row" data-pick="${esc(c.id)}" aria-pressed="${f.catId === c.id}">
-                ${badge(c.name)}<span class="t"><div>${esc(c.name)}</div></span><span class="check">${f.catId === c.id ? "✓" : ""}</span>
-              </button>`).join("")}</div>` : ""}
           </div>
           <label class="field"><span>Tarix</span><input id="f-date" class="input" type="date" value="${esc(f.date)}"></label>
           <label class="field"><span>Qeyd</span><input id="f-note" class="input" placeholder="İstəyə bağlı" value="${esc(f.note)}" maxlength="120"></label>
@@ -1971,7 +1968,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
       const t = e.target.closest("button");
       if (!t) return;
       if (t.dataset.kind) { f.kind = t.dataset.kind; f.catId = null; catOpen = false; draw(); }
-      else if (t.hasAttribute("data-togglecats")) { catOpen = !catOpen; draw(); }
+      else if (t.hasAttribute("data-togglecats")) openPicker(f.kind === "expense" ? "Xərc maddəsi" : "Gəlir mənbəyi", state.categories.filter(c => c.kind === f.kind), f.catId, id => { f.catId = id; draw(); });
       else if (t.dataset.type) { f.type = t.dataset.type; draw(); }
       else if (t.dataset.pay) { f.pay = t.dataset.pay; draw(); }
       else if (t.dataset.paycard) { f.cardId = t.dataset.paycard; draw(); }
@@ -2245,6 +2242,27 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     draw();
   }
 
+  // Maddə seçimi ayrıca tam pəncərədə açılır: uzun siyahı rahat sürüşür, seçəndə forma geri qayıdır
+  function openPicker(title, items, selected, onPick) {
+    let root = $("#pickRoot");
+    if (!root) { root = document.createElement("div"); root.id = "pickRoot"; document.body.appendChild(root); }
+    let q = "";
+    const close = () => { root.innerHTML = ""; root.onclick = null; };
+    const rows = () => items.filter(c => !q || c.name.toLocaleLowerCase("az").includes(q)).map(c => `
+      <button class="row" data-pick="${esc(c.id)}" aria-pressed="${selected === c.id}">
+        ${badge(c.name)}<span class="t"><div>${esc(c.name)}</div></span><span class="check">${selected === c.id ? "✓" : ""}</span>
+      </button>`).join("") || `<div class="empty">Tapılmadı.</div>`;
+    root.innerHTML = `<div class="sheet-bg pick-bg" data-pbg><div class="sheet pick" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+      <div class="sheet-head"><button class="link" data-pclose>Bağla</button><h2>${esc(title)}</h2><span></span></div>
+      ${items.length > 8 ? `<input id="pick-q" class="input" type="search" placeholder="Axtar…" autocomplete="off" style="margin-bottom:10px">` : ""}
+      <div class="list" id="pick-list">${rows()}</div>
+    </div></div>`;
+    $("#pick-q")?.addEventListener("input", e => { q = e.target.value.trim().toLocaleLowerCase("az"); $("#pick-list").innerHTML = rows(); });
+    root.onclick = e => {
+      if (e.target.hasAttribute("data-pbg") || e.target.closest("[data-pclose]")) return close();
+      const b = e.target.closest("[data-pick]"); if (b) { close(); onPick(b.dataset.pick); }
+    };
+  }
   function closeSheet() { $("#sheetRoot").innerHTML = ""; sheetHandler = null; }
   $("#sheetRoot").addEventListener("click", e => {
     if (e.target.hasAttribute("data-bg") || e.target.closest("[data-close]")) return closeSheet();
