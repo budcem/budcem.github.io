@@ -318,6 +318,17 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .type-ic { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; }
 .type-ic i { width: 12px; height: 12px; border-radius: 4px; }
 .note { font-size: 13px; color: var(--muted); text-align: center; margin: 4px 8px; }
+/* Giriş ekranı (bulud hesabı) */
+.auth { position: fixed; inset: 0; z-index: 40; background: var(--bg); overflow-y: auto; padding: max(48px, env(safe-area-inset-top)) 16px 32px; }
+.auth[hidden] { display: none; }
+.auth .box { max-width: 380px; margin: 0 auto; display: grid; gap: 14px; }
+.auth h1 { font-family: var(--font-display); font-size: 34px; margin: 0; }
+.auth .lead { margin: -6px 0 6px; color: var(--muted); font-size: 15px; }
+.auth .err { color: var(--expense); font-size: 14px; margin: 0; }
+.auth .link { justify-self: center; }
+.acct { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.acct b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.acct button { flex: none; width: auto; padding: 9px 16px; }
 </style>
 
 <div class="wrap">
@@ -334,6 +345,8 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   </header>
   <main id="view" class="stack"></main>
 </div>
+
+<div class="auth" id="auth" hidden></div>
 
 <button class="fab" id="fab" aria-label="Yeni əməliyyat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
 
@@ -449,16 +462,122 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
       <button class="primary" data-backup>İndi yüklə</button>
     </section>`;
   }
+  // ---------- Bulud hesabı (Firebase) ----------
+  // Ayrıca saytda hər kəs öz hesabı ilə daxil olur; məlumat Firestore-da users/{uid} altında saxlanılır.
+  const FB_CONFIG = {
+    apiKey: "AIzaSyBnHE9nq8tAG-SIDKIVuvpiWwJqlectpD4",
+    authDomain: "budcem-1e99e.firebaseapp.com",
+    projectId: "budcem-1e99e",
+    storageBucket: "budcem-1e99e.firebasestorage.app",
+    messagingSenderId: "922264512547",
+    appId: "1:922264512547:web:ce06ca9357701acb9ce996"
+  };
+  const FB_BASE = "https://www.gstatic.com/firebasejs/10.14.1/";
+  const UPLOADED_KEY = "budcem.uploadedTo";
+  const loadScript = src => new Promise((ok, no) => { const el = document.createElement("script"); el.src = src; el.onload = ok; el.onerror = no; document.head.appendChild(el); });
+  async function loadFirebase() {
+    await loadScript(FB_BASE + "firebase-app-compat.js");
+    await Promise.all([loadScript(FB_BASE + "firebase-auth-compat.js"), loadScript(FB_BASE + "firebase-firestore-compat.js")]);
+    firebase.initializeApp(FB_CONFIG);
+    const fs = firebase.firestore();
+    try { await fs.enablePersistence({ synchronizeTabs: true }); } catch (e) {}
+    return { auth: firebase.auth(), fs };
+  }
+  // İstifadəçi adı e-poçta çevrilir: "elsen" → "elsen@budcem.app"
+  const USER_DOMAIN = "@budcem.app";
+  const toEmail = v => v.includes("@") ? v.trim() : v.trim().toLocaleLowerCase("en") + USER_DOMAIN;
+  const displayName = email => (email || "").endsWith(USER_DOMAIN) ? email.slice(0, -USER_DOMAIN.length) : email;
+  function authError(e) {
+    const c = e?.code || "";
+    if (/invalid-credential|wrong-password|user-not-found|invalid-login/.test(c)) return "İstifadəçi adı və ya şifrə yanlışdır.";
+    if (c.includes("email-already-in-use")) return "Bu ad artıq istifadə olunur. Başqa ad seçin və ya daxil olun.";
+    if (c.includes("weak-password")) return "Şifrə ən azı 6 simvol olmalıdır.";
+    if (c.includes("invalid-email")) return "İstifadəçi adı və ya e-poçt düzgün deyil.";
+    if (c.includes("network-request-failed")) return "İnternet bağlantısı yoxdur.";
+    if (c.includes("too-many-requests")) return "Çox cəhd edildi. Bir az sonra yenidən yoxlayın.";
+    if (c.includes("operation-not-allowed") || c.includes("configuration-not-found")) return "Firebase-də Email/Password girişi aktiv edilməyib.";
+    return "Xəta baş verdi: " + (c || e?.message || "naməlum");
+  }
+  function showAuth(mode, msg) {
+    const box = $("#auth");
+    const reg = mode === "register";
+    box.innerHTML = `<form class="box" novalidate>
+      <h1>Büdcəm</h1>
+      <p class="lead">${reg ? "Yeni hesab yaradın. Məlumatlarınızı yalnız siz görəcəksiniz." : "Hesabınıza daxil olun."}</p>
+      <label class="field"><span>İstifadəçi adı və ya e-poçt</span><input id="a-user" class="input" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Məsələn: elsen"></label>
+      <label class="field"><span>Şifrə</span><input id="a-pass" class="input" type="password" autocomplete="${reg ? "new-password" : "current-password"}" placeholder="Ən azı 6 simvol"></label>
+      ${reg ? `<label class="field"><span>Şifrəni təkrarlayın</span><input id="a-pass2" class="input" type="password" autocomplete="new-password"></label>` : ""}
+      ${msg ? `<p class="err" role="alert">${esc(msg)}</p>` : ""}
+      <button class="primary" type="submit">${reg ? "Qeydiyyatdan keç" : "Daxil ol"}</button>
+      <button class="link" type="button" data-authmode="${reg ? "login" : "register"}">${reg ? "Hesabım var, daxil olum" : "Hesabım yoxdur, qeydiyyat"}</button>
+      ${reg ? "" : `<button class="link" type="button" data-reset>Şifrəni unutdum</button>`}
+      <p class="note">İstifadəçi adı ilə qeydiyyat olsanız, şifrəni unutduqda bərpa etmək olmur. Şifrə bərpası üçün e-poçtla qeydiyyatdan keçin.</p>
+    </form>`;
+    box.hidden = false;
+    const form = box.querySelector("form");
+    form.addEventListener("submit", async ev => {
+      ev.preventDefault();
+      const user = $("#a-user").value.trim(), pass = $("#a-pass").value;
+      if (!user || !pass) return showAuth(mode, "İstifadəçi adı və şifrəni yazın.");
+      if (!user.includes("@") && !/^[a-z0-9._-]{3,30}$/i.test(user)) return showAuth(mode, "İstifadəçi adında yalnız latın hərfləri, rəqəm, nöqtə, - və _ ola bilər (3-30 simvol).");
+      if (reg && pass !== $("#a-pass2").value) return showAuth(mode, "Şifrələr eyni deyil.");
+      form.querySelector("[type=submit]").disabled = true;
+      try {
+        if (reg) await store.fb.auth.createUserWithEmailAndPassword(toEmail(user), pass);
+        else await store.fb.auth.signInWithEmailAndPassword(toEmail(user), pass);
+      } catch (e) { showAuth(mode, authError(e)); }
+    });
+    form.addEventListener("click", async ev => {
+      const b = ev.target.closest("button[type=button]"); if (!b) return;
+      if (b.dataset.authmode) showAuth(b.dataset.authmode);
+      else if (b.hasAttribute("data-reset")) {
+        const user = $("#a-user").value.trim();
+        if (!user.includes("@")) return showAuth(mode, "Şifrə bərpası yalnız e-poçtla qeydiyyat olan hesablar üçündür. E-poçtunuzu yazın.");
+        try { await store.fb.auth.sendPasswordResetEmail(user); showAuth(mode, "Şifrə bərpası üçün e-poçtunuza məktub göndərildi."); }
+        catch (e) { showAuth(mode, authError(e)); }
+      }
+    });
+  }
+  const hideAuth = () => { $("#auth").hidden = true; $("#auth").innerHTML = ""; };
+
   const store = {
     mode: "local",
+    cloud: false,
+    unsubs: [],
     async init() {
       let db = null, user = null, id = null;
       if (window.claude && typeof window.claude.use === "function") {
         try { [db, user] = await Promise.all([window.claude.use("db"), window.claude.use("user")]); } catch (e) {}
         if (db && user) { try { id = await user.id(); } catch (e) {} }
+        if (db && id) return this.initDb(db, id);
       }
-      if (db && id) return this.initDb(db, id);
+      if (!window.claude) {
+        let fb = null;
+        try { fb = await loadFirebase(); } catch (e) {}
+        if (fb) return this.initCloud(fb);
+      }
       this.initLocal();
+    },
+    // Giriş vəziyyəti dəyişəndə: daxil olubsa həmin hesabın məlumatını aç, çıxıbsa giriş ekranını göstər
+    initCloud(fb) {
+      this.fb = fb; this.cloud = true;
+      fb.auth.onAuthStateChanged(u => {
+        this.stop();
+        this.user = u || null;
+        state.ready = false; state.records = []; render();
+        if (!u) return showAuth("login");
+        hideAuth();
+        this.initDb({ doc: p => fb.fs.doc(p) }, u.uid, `users/${u.uid}`);
+      });
+    },
+    stop() { this.unsubs.forEach(f => typeof f === "function" && f()); this.unsubs = []; this.migrated = false; },
+    async signOut() { this.stop(); try { await this.fb.auth.signOut(); } catch (e) {} },
+    // Yeni (boş) hesaba bu telefondakı köhnə məlumat köçürülür. Hər telefon yalnız bir hesaba köçürür.
+    localSeed() {
+      let data = null, done = null;
+      try { data = JSON.parse(localStorage.getItem(LS_KEY) || "null"); done = localStorage.getItem(UPLOADED_KEY); } catch (e) {}
+      if (!data || done) return null;
+      return data;
     },
     initLocal() {
       this.mode = "local";
@@ -480,13 +599,13 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
       try { localStorage.setItem(LS_KEY, JSON.stringify({ categories: state.categories, records: state.records, reminders: state.reminders, done: state.done, plan: state.plan, cards: state.cards, cardOpening: state.cards[0]?.opening || 0, catsVersion: state.catsVersion })); }
       catch (e) { toast("Yadda saxlamaq alınmadı: brauzer yaddaşı əlçatan deyil."); }
     },
-    initDb(db, id) {
+    initDb(db, id, path) {
       this.mode = "db";
-      this.base = db.doc(`data/users/${id}/budget`);
+      this.base = db.doc(path || `data/users/${id}/budget`);
       this.recs = this.base.collection("records");
       let gotCats = false, gotRecs = false;
       const done = () => { if (gotCats && gotRecs && !state.ready) { state.ready = true; } render(); };
-      this.base.onSnapshot(s => {
+      const unsubMeta = this.base.onSnapshot(s => {
         if (s.exists) {
           const d = s.data();
           state.categories = d.categories || [];
@@ -500,18 +619,51 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
           done();
         }
         else if (!s.metadata.fromCache) {
-          state.categories = DEFAULT_CATS.slice(); state.reminders = []; state.done = {}; state.cards = normCards(); state.catsVersion = CATS_VERSION;
+          const seed = this.cloud ? this.localSeed() : null;
+          state.categories = seed?.categories || DEFAULT_CATS.slice();
+          state.reminders = seed?.reminders || []; state.done = seed?.done || {};
+          state.plan = normPlan(seed?.plan);
+          state.cards = normCards(seed?.cards, seed?.cardOpening);
+          state.catsVersion = seed ? (seed.catsVersion || 1) : CATS_VERSION;
+          if (seed) upgradeCats();
           this.migrated = true;
           gotCats = true; done();
           this.saveMeta();
+          if (seed) {
+            (seed.records || []).forEach(r => { const { id: rid, ...body } = r; this.recs.doc(rid).set(body).catch(() => {}); });
+            try { localStorage.setItem(UPLOADED_KEY, id); } catch (e) {}
+            toast(`Telefondakı ${(seed.records || []).length} əməliyyat hesaba köçürüldü`);
+          }
         }
-      }, () => this.fail());
-      this.recs.onSnapshot(q => {
+      }, e => this.fail(e));
+      const unsubRecs = this.recs.onSnapshot(q => {
         state.records = q.docs.map(d => ({ ...d.data(), id: d.id }));
         gotRecs = true; done();
-      }, () => this.fail());
+      }, e => this.fail(e));
+      this.unsubs = [unsubMeta, unsubRecs];
     },
-    fail() { toast("Məlumat bazası ilə əlaqə kəsildi. Səhifəni yeniləyin."); },
+    fail(e) {
+      if (e?.code === "permission-denied") toast("Bazaya giriş qadağandır: Firestore qaydasını yoxlayın.");
+      else toast("Məlumat bazası ilə əlaqə kəsildi. Səhifəni yeniləyin.");
+    },
+    // Ehtiyat nüsxədən bərpa: köhnə yazılar nüsxədəkilərlə əvəzlənir
+    async replaceAll(d) {
+      const old = state.records;
+      state.categories = d.categories || DEFAULT_CATS.slice();
+      state.records = d.records;
+      state.reminders = d.reminders || [];
+      state.done = d.done || {};
+      state.plan = normPlan(d.plan);
+      state.cards = normCards(d.cards, d.cardOpening);
+      state.catsVersion = d.catsVersion || 1;
+      upgradeCats();
+      if (this.mode === "local") { this.persistLocal(); render(); return; }
+      render();
+      const keep = new Set(d.records.map(r => r.id));
+      old.filter(r => !keep.has(r.id)).forEach(r => this.recs.doc(r.id).delete().catch(() => {}));
+      d.records.forEach(r => { const { id, ...body } = r; this.recs.doc(id).set(body).catch(() => {}); });
+      this.saveMeta();
+    },
     async saveRecord(r) {
       const i = state.records.findIndex(x => x.id === r.id);
       if (i >= 0) state.records[i] = r; else state.records.push(r);
@@ -1299,10 +1451,16 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
         </button>`).join("") || `<div class="empty">Siyahı boşdur.</div>`}
       </div>
       <button class="primary" data-newcat>+ Yeni ${state.catKind === "expense" ? "xərc maddəsi" : "gəlir mənbəyi"}</button>
-      ${store.mode === "local" ? `
+      ${store.cloud && store.user ? `
+      <section class="card" style="margin-top:8px">
+        <p class="label">Hesab</p>
+        <div class="acct"><b>${esc(displayName(store.user.email))}</b><button class="secondary" data-logout>Çıxış</button></div>
+        <p class="note" style="text-align:left;margin:10px 0 0">Məlumatlarınız hesabınızda saxlanılır. İstənilən telefondan bu adla daxil olub görə bilərsiniz.</p>
+      </section>` : ""}
+      ${store.mode === "local" || store.cloud ? `
       <section class="card" style="margin-top:8px">
         <p class="label">Ehtiyat nüsxə</p>
-        <p class="note" style="text-align:left;margin:0 0 12px">Məlumatlarınız yalnız bu telefonda saxlanılır. Telefonu dəyişəndə və ya Safari məlumatlarını siləndə itməsin deyə, vaxtaşırı ehtiyat nüsxə yükləyin.</p>
+        <p class="note" style="text-align:left;margin:0 0 12px">${store.cloud ? "Əlavə təhlükəsizlik üçün məlumatınızın faylını yükləyə və lazım olanda ondan bərpa edə bilərsiniz." : "Məlumatlarınız yalnız bu telefonda saxlanılır. Telefonu dəyişəndə və ya Safari məlumatlarını siləndə itməsin deyə, vaxtaşırı ehtiyat nüsxə yükləyin."}</p>
         <div class="split">
           <button class="secondary" data-backup>Nüsxəni yüklə</button>
           <button class="secondary" data-restore>Nüsxədən bərpa et</button>
@@ -1742,9 +1900,10 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
       render();
     }
     else if (b.hasAttribute("data-restore")) $("#restoreFile").click();
+    else if (b.hasAttribute("data-logout")) store.signOut();
   });
 
-  // Ehtiyat nüsxədən bərpa (yalnız telefonda saxlanılan rejimdə)
+  // Ehtiyat nüsxədən bərpa (telefon rejimində və bulud hesabında)
   document.addEventListener("change", e => {
     if (e.target.id !== "restoreFile" || !e.target.files[0]) return;
     const reader = new FileReader();
@@ -1752,15 +1911,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
       try {
         const d = JSON.parse(reader.result);
         if (d.app !== "budcem" || !Array.isArray(d.records)) throw new Error("format");
-        state.categories = d.categories || DEFAULT_CATS.slice();
-        state.records = d.records;
-        state.reminders = d.reminders || [];
-        state.done = d.done || {};
-        state.plan = normPlan(d.plan);
-        state.cards = normCards(d.cards, d.cardOpening);
-        state.catsVersion = d.catsVersion || 1;
-        upgradeCats();
-        store.persistLocal(); render();
+        store.replaceAll(d);
         toast(`Bərpa edildi: ${d.records.length} əməliyyat`);
       } catch (err) { toast("Bu fayl Büdcəm ehtiyat nüsxəsi deyil."); }
     };

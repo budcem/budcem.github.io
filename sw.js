@@ -1,5 +1,5 @@
 // Büdcəm: tətbiq fayllarını keşdə saxlayır ki, internet olmadan da açılsın
-const CACHE = "budcem-v17";
+const CACHE = "budcem-v18";
 const FILES = ["./", "./index.html", "./manifest.json", "./apple-touch-icon.png", "./icon-192.png", "./icon-512.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener("activate", e => {
@@ -8,6 +8,9 @@ self.addEventListener("activate", e => {
 });
 self.addEventListener("fetch", e => {
   if (e.request.method !== "GET") return;
+  // Yalnız öz fayllarımız və kitabxanalar (Firebase, SheetJS) keşlənir; Firestore/giriş sorğularına toxunulmur
+  const host = new URL(e.request.url).host;
+  if (host !== location.host && host !== "www.gstatic.com" && host !== "cdnjs.cloudflare.com") return;
   // Əvvəlcə şəbəkə, alınmasa keş: yeniləmələr dərhal görünür
   e.respondWith(
     // Öz fayllarımız üçün brauzerin HTTP keşini keçir ki, yeni versiya dərhal gəlsin
