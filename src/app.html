@@ -422,7 +422,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     reminders: [],
     done: {},
     plan: { income: 0, types: {}, cats: {} },
-    cardOpening: 0,
+    cards: [],
     // Xülasədə xərc bölgüsünün dövrü: "month" (seçilmiş ay), "all", "range"
     sumPeriod: "month", sumFrom: "", sumTo: "",
     catsVersion: CATS_VERSION,
@@ -469,7 +469,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
       state.reminders = data?.reminders || [];
       state.done = data?.done || {};
       state.plan = normPlan(data?.plan);
-      state.cardOpening = Number(data?.cardOpening) || 0;
+      state.cards = normCards(data?.cards, data?.cardOpening);
       state.catsVersion = data ? (data.catsVersion || 1) : CATS_VERSION;
       state.ready = true;
       const migrated = [this.dropOldDefaults(), upgradeCats()].some(Boolean);
@@ -477,7 +477,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
       render();
     },
     persistLocal() {
-      try { localStorage.setItem(LS_KEY, JSON.stringify({ categories: state.categories, records: state.records, reminders: state.reminders, done: state.done, plan: state.plan, cardOpening: state.cardOpening, catsVersion: state.catsVersion })); }
+      try { localStorage.setItem(LS_KEY, JSON.stringify({ categories: state.categories, records: state.records, reminders: state.reminders, done: state.done, plan: state.plan, cards: state.cards, cardOpening: state.cards[0]?.opening || 0, catsVersion: state.catsVersion })); }
       catch (e) { toast("Yadda saxlamaq alınmadı: brauzer yaddaşı əlçatan deyil."); }
     },
     initDb(db, id) {
@@ -493,14 +493,14 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
           state.reminders = d.reminders || [];
           state.done = d.done || {};
           state.plan = normPlan(d.plan);
-          state.cardOpening = Number(d.cardOpening) || 0;
+          state.cards = normCards(d.cards, d.cardOpening);
           state.catsVersion = d.catsVersion || 1;
           gotCats = true;
           if (!s.metadata.fromCache && !this.migrated) { this.migrated = true; if ([this.dropOldDefaults(), upgradeCats()].some(Boolean)) this.saveMeta(); }
           done();
         }
         else if (!s.metadata.fromCache) {
-          state.categories = DEFAULT_CATS.slice(); state.reminders = []; state.done = {}; state.cardOpening = 0; state.catsVersion = CATS_VERSION;
+          state.categories = DEFAULT_CATS.slice(); state.reminders = []; state.done = {}; state.cards = normCards(); state.catsVersion = CATS_VERSION;
           this.migrated = true;
           gotCats = true; done();
           this.saveMeta();
@@ -536,7 +536,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     async saveMeta() {
       render();
       if (this.mode === "local") return this.persistLocal();
-      try { await this.base.set({ categories: state.categories, reminders: state.reminders, done: state.done, plan: state.plan, cardOpening: state.cardOpening, catsVersion: state.catsVersion }); }
+      try { await this.base.set({ categories: state.categories, reminders: state.reminders, done: state.done, plan: state.plan, cards: state.cards, cardOpening: state.cards[0]?.opening || 0, catsVersion: state.catsVersion }); }
       catch (e) { toast("Yadda saxlamaq alınmadı. Yenidən cəhd edin."); }
     },
     saveCategories(cats) { state.categories = cats; return this.saveMeta(); },
@@ -558,6 +558,11 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     state.categories = [...cats, ...NEW_INCOME_CATS.filter(c => !cats.some(x => x.id === c.id))];
     state.catsVersion = CATS_VERSION;
     return true;
+  }
+  // Kartlar: köhnə məlumatda yalnız cardOpening var idi, o ilk karta ("card1") köçürülür
+  function normCards(cards, cardOpening) {
+    if (Array.isArray(cards) && cards.length) return cards.map(c => ({ id: String(c.id), name: String(c.name || "Kart"), limit: Number(c.limit) || 0, opening: Number(c.opening) || 0 }));
+    return [{ id: "card1", name: "Taksit kartı", limit: 0, opening: Number(cardOpening) || 0 }];
   }
   const sum = list => list.reduce((a, r) => a + (Number(r.amount) || 0), 0);
 
@@ -618,94 +623,162 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
       </button>
       <button class="tile wide" data-opencard>
         <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19M6.5 15h4"/></svg></span>
-        <div><b>Taksit kartı</b><span class="s">Borc: ${money(cardDebt())}</span></div>
+        <div><b>Taksit kartları</b><span class="s">${state.cards.length > 1 ? `${state.cards.length} kart · ` : ""}Borc: ${money(totalCardDebt())}</span></div>
       </button>
     </div>`;
   }
 
-  // ---------- Taksit kartı ----------
-  // Kartla edilən alış adi xərcdir (pay: "card") və bir dəfə sayılır.
-  // Karta pul köçürmək xərc deyil (kind: "cardpay"): yalnız kart borcunu azaldır.
+  // ---------- Taksit kartları ----------
+  // Kartla edilən alış adi xərcdir (pay: "card", cardId) və bir dəfə sayılır.
+  // Karta pul köçürmək xərc deyil (kind: "cardpay", cardId): yalnız həmin kartın borcunu azaldır.
+  // cardId olmayan köhnə yazılar ilk karta ("card1") aiddir.
+  const DEFAULT_CARD = "card1";
   const isCardExp = r => r.kind === "expense" && r.pay === "card";
+  const cardIdOf = r => r.cardId || DEFAULT_CARD;
+  const cardById = id => state.cards.find(c => c.id === id);
+  const cardName = r => cardById(cardIdOf(r))?.name || "Taksit kartı";
+  const cardRecs = id => state.records.filter(r => (isCardExp(r) || r.kind === "cardpay") && cardIdOf(r) === id);
   // Borc = tətbiqə qədərki ilkin borc + kartla xərclər − karta ödənişlər
-  function cardDebt() {
-    return state.cardOpening + sum(state.records.filter(isCardExp)) - sum(state.records.filter(r => r.kind === "cardpay"));
+  function cardDebt(id) {
+    const c = cardById(id); if (!c) return 0;
+    const recs = cardRecs(id);
+    return c.opening + sum(recs.filter(isCardExp)) - sum(recs.filter(r => r.kind === "cardpay"));
   }
+  const totalCardDebt = () => state.cards.reduce((a, c) => a + cardDebt(c.id), 0);
+  const parseMoney = v => parseFloat(String(v ?? "").replace(/\s/g, "").replace(",", "."));
+  const toInput = v => v ? String(v).replace(".", ",") : "";
+
   function openCardSheet() {
-    const draw = () => {
-      const m = state.month.getMonth();
-      const list = monthRecords().filter(r => isCardExp(r) || r.kind === "cardpay")
-        .sort((a, b) => b.date.localeCompare(a.date) || (b.created || 0) - (a.created || 0));
-      const debt = cardDebt();
-      sheet(`
-        <div class="sheet-head">
-          <button class="link" data-close>Bağla</button>
-          <h2>Taksit kartı</h2>
-          <span></span>
-        </div>
-        <div class="stack">
-          <section class="card balance">
-            <p class="label">Qalan borc</p>
-            <div class="big num ${debt > 0 ? "neg" : ""}">${money(debt)}</div>
-            <div class="split">
-              <div class="out"><small>${MONTHS[m]}: kartla xərc</small><b class="num">${money(sum(list.filter(isCardExp)))}</b></div>
-              <div class="in"><small>${MONTHS[m]}: karta ödəniş</small><b class="num">${money(sum(list.filter(r => r.kind === "cardpay")))}</b></div>
-            </div>
-          </section>
-          <div class="stack-row">
-            <button class="secondary" data-editdebt>Borcu düzəlt</button>
-            <button class="primary" data-newcardpay>+ Karta ödəniş</button>
-          </div>
-          <div class="list">${list.map(rowHtml).join("") || `<div class="empty">Bu ay kartla əməliyyat yoxdur.</div>`}</div>
-          <p class="note">Kartla alış edəndə xərci adi qaydada yazın və "Taksit kartı" seçin. Sonra öz pulunuzdan karta köçürəndə buradan "Karta ödəniş" əlavə edin: bu xərc kimi sayılmır, yalnız borcu azaldır.</p>
-        </div>`);
-    };
+    sheet(`
+      <div class="sheet-head">
+        <button class="link" data-close>Bağla</button>
+        <h2>Taksit kartları</h2>
+        <span></span>
+      </div>
+      <div class="stack">
+        <div class="list">${state.cards.map(c => {
+          const debt = cardDebt(c.id), free = c.limit - debt;
+          return `<button class="row" data-card="${esc(c.id)}">
+            ${badge(c.name)}
+            <span class="t"><div>${esc(c.name)}</div>
+              <div class="sub">${c.limit > 0 ? `Limit ${money(c.limit)} · Boş ${money(free)}` : "Limit yazılmayıb"}</div>
+              ${c.limit > 0 ? `<div class="track"><i style="width:${Math.min(100, Math.max(0, debt / c.limit * 100)).toFixed(1)}%"></i></div>` : ""}
+            </span>
+            <span class="amt num ${debt > 0 ? "bal-neg" : ""}">${money(debt)}</span>
+          </button>`;
+        }).join("")}</div>
+        <button class="secondary" data-newcard>+ Yeni kart</button>
+        <p class="note">Hər kartın qalan borcu sağda görünür. Kartla alış edəndə xərci adi qaydada yazın, "Taksit kartı" və kartı seçin. Karta pul köçürəndə kartın içindən "Karta ödəniş" əlavə edin.</p>
+      </div>`);
     sheetHandler = e => {
       const t = e.target.closest("button"); if (!t) return;
-      if (t.hasAttribute("data-newcardpay")) openCardPaySheet(null);
-      else if (t.hasAttribute("data-editdebt")) openCardDebtSheet();
-      else if (t.dataset.edit) {
-        const r = state.records.find(x => x.id === t.dataset.edit);
-        if (r) r.kind === "cardpay" ? openCardPaySheet(r) : openRecordSheet(r, null, null, openCardSheet);
-      }
+      if (t.dataset.card) openCardDetail(t.dataset.card);
+      else if (t.hasAttribute("data-newcard")) openCardEdit(null);
     };
-    draw();
   }
-  // Hazırkı qalan borcu yazmaq: fərq ilkin borca əlavə olunur, köhnə alışlara toxunulmur
-  function openCardDebtSheet() {
-    const cur = cardDebt();
-    const draw = () => {
-      sheet(`
-        <div class="sheet-head">
-          <button class="link" data-back>‹ Geri</button>
-          <h2>Borcu düzəlt</h2>
-          <button class="link save" data-save>Saxla</button>
-        </div>
-        <div class="stack">
-          <label class="field"><span>Hazırda kartda qalan borc (₼)</span><input id="d-debt" class="input num" inputmode="decimal" value="${esc(String(cur).replace(".", ","))}"></label>
-          <p class="note">Bu məbləği yazın. Tətbiq fərqi ilkin borca əlavə edəcək, köhnə əməliyyatlar dəyişməyəcək. Məsələn, kartda 1200 ₼ borc varsa, bunu yazın.</p>
-        </div>`);
-    };
-    draw();
+
+  function openCardDetail(id) {
+    const c = cardById(id); if (!c) return openCardSheet();
+    const m = state.month.getMonth();
+    const list = monthRecords().filter(r => (isCardExp(r) || r.kind === "cardpay") && cardIdOf(r) === id)
+      .sort((a, b) => b.date.localeCompare(a.date) || (b.created || 0) - (a.created || 0));
+    const debt = cardDebt(id);
+    sheet(`
+      <div class="sheet-head">
+        <button class="link" data-back>‹ Kartlar</button>
+        <h2>${esc(c.name)}</h2>
+        <button class="link save" data-editcard>Düzəlt</button>
+      </div>
+      <div class="stack">
+        <section class="card balance">
+          <p class="label">Qalan borc</p>
+          <div class="big num ${debt > 0 ? "neg" : ""}">${money(debt)}</div>
+          <div class="split">
+            <div><small>Limit</small><b class="num">${c.limit > 0 ? money(c.limit) : "—"}</b></div>
+            <div class="in"><small>Boş limit</small><b class="num">${c.limit > 0 ? money(c.limit - debt) : "—"}</b></div>
+          </div>
+          <div class="split" style="margin-top:10px">
+            <div class="out"><small>${MONTHS[m]}: kartla xərc</small><b class="num">${money(sum(list.filter(isCardExp)))}</b></div>
+            <div class="in"><small>${MONTHS[m]}: karta ödəniş</small><b class="num">${money(sum(list.filter(r => r.kind === "cardpay")))}</b></div>
+          </div>
+        </section>
+        <button class="primary" data-newcardpay>+ Karta ödəniş</button>
+        <div class="list">${list.map(rowHtml).join("") || `<div class="empty">Bu ay bu kartla əməliyyat yoxdur.</div>`}</div>
+      </div>`);
     sheetHandler = e => {
       const t = e.target.closest("button"); if (!t) return;
       if (t.hasAttribute("data-back")) openCardSheet();
-      else if (t.hasAttribute("data-save")) {
-        const want = parseFloat($("#d-debt").value.replace(",", "."));
-        if (!Number.isFinite(want)) { toast("Məbləği düzgün yazın."); return; }
-        state.cardOpening = Math.round((state.cardOpening + (want - cur)) * 100) / 100;
-        store.saveMeta(); toast("Borc yeniləndi"); openCardSheet();
+      else if (t.hasAttribute("data-editcard")) openCardEdit(id);
+      else if (t.hasAttribute("data-newcardpay")) openCardPaySheet(null, id);
+      else if (t.dataset.edit) {
+        const r = state.records.find(x => x.id === t.dataset.edit);
+        if (r) r.kind === "cardpay" ? openCardPaySheet(r) : openRecordSheet(r, null, null, () => openCardDetail(id));
       }
     };
   }
 
-  function openCardPaySheet(rec) {
+  // Kart əlavə etmək və ya dəyişmək. "Qalan borc" yazılanda fərq kartın ilkin borcuna düşür, köhnə yazılara toxunulmur.
+  function openCardEdit(id) {
+    const c = id ? cardById(id) : null;
+    const cur = c ? cardDebt(id) : 0;
+    const used = c ? cardRecs(id).length : 0;
+    const f = { name: c?.name || "", limit: toInput(c?.limit), debt: c ? String(Math.round(cur * 100) / 100).replace(".", ",") : "" };
+    let confirmDel = false;
+    const draw = () => {
+      sheet(`
+        <div class="sheet-head">
+          <button class="link" data-back>‹ Geri</button>
+          <h2>${c ? "Kartı düzəlt" : "Yeni kart"}</h2>
+          <button class="link save" data-save ${f.name.trim() ? "" : "disabled"}>Saxla</button>
+        </div>
+        <div class="stack">
+          <label class="field"><span>Kartın adı</span><input id="c-name" class="input" value="${esc(f.name)}" placeholder="Məsələn: Leobank, Birbank" maxlength="30"></label>
+          <label class="field"><span>Limit (₼)</span><input id="c-limit" class="input num" inputmode="decimal" value="${esc(f.limit)}" placeholder="0"></label>
+          <label class="field"><span>Hazırda qalan borc (₼)</span><input id="c-debt" class="input num" inputmode="decimal" value="${esc(f.debt)}" placeholder="0"></label>
+          <p class="note">Qalan borcu yazanda tətbiq fərqi kartın ilkin borcuna əlavə edir. Köhnə əməliyyatlar dəyişmir.</p>
+          ${c && state.cards.length > 1 ? (used
+            ? `<p class="note">Bu kartla ${used} əməliyyat var, ona görə kartı silmək olmaz.</p>`
+            : `<button class="danger ${confirmDel ? "confirm" : ""}" data-del>${confirmDel ? "Silməyi təsdiqləyin" : "Kartı sil"}</button>`) : ""}
+        </div>`);
+      $("#c-name").addEventListener("input", e => { f.name = e.target.value; $("[data-save]").disabled = !f.name.trim(); });
+      $("#c-limit").addEventListener("input", e => { f.limit = e.target.value; });
+      $("#c-debt").addEventListener("input", e => { f.debt = e.target.value; });
+    };
+    sheetHandler = e => {
+      const t = e.target.closest("button"); if (!t) return;
+      if (t.hasAttribute("data-back")) c ? openCardDetail(id) : openCardSheet();
+      else if (t.hasAttribute("data-del")) {
+        if (!confirmDel) { confirmDel = true; draw(); return; }
+        state.cards = state.cards.filter(x => x.id !== id);
+        store.saveMeta(); toast("Kart silindi"); openCardSheet();
+      }
+      else if (t.hasAttribute("data-save")) {
+        const name = f.name.trim(); if (!name) return;
+        const limit = parseMoney(f.limit), debt = parseMoney(f.debt);
+        if (f.limit.trim() && !Number.isFinite(limit)) { toast("Limiti düzgün yazın."); return; }
+        if (f.debt.trim() && !Number.isFinite(debt)) { toast("Borcu düzgün yazın."); return; }
+        const want = Number.isFinite(debt) ? debt : 0;
+        const r2 = v => Math.round(v * 100) / 100;
+        if (c) {
+          state.cards = state.cards.map(x => x.id === id ? { ...x, name, limit: Number.isFinite(limit) ? r2(limit) : 0, opening: r2(x.opening + (want - cur)) } : x);
+          store.saveMeta(); toast("Yadda saxlanıldı"); openCardDetail(id);
+        } else {
+          state.cards = [...state.cards, { id: "card-" + uid().slice(0, 10), name, limit: Number.isFinite(limit) ? r2(limit) : 0, opening: r2(want) }];
+          store.saveMeta(); toast("Kart əlavə edildi"); openCardSheet();
+        }
+      }
+    };
+    draw();
+  }
+
+  function openCardPaySheet(rec, cardId) {
     const editing = !!rec;
-    const f = rec ? { ...rec, amount: String(rec.amount).replace(".", ",") }
-                  : { id: uid(), kind: "cardpay", amount: "", date: ymd(new Date()), note: "", created: Date.now() };
+    const f = rec ? { ...rec, amount: String(rec.amount).replace(".", ","), cardId: cardIdOf(rec) }
+                  : { id: uid(), kind: "cardpay", amount: "", date: ymd(new Date()), note: "", created: Date.now(), cardId: cardId || state.cards[0]?.id || DEFAULT_CARD };
     if (!editing && monthKey(state.month) !== monthKey(new Date())) f.date = ymd(new Date(state.month.getFullYear(), state.month.getMonth(), 1));
     let confirmDel = false;
-    const valid = () => parseFloat(String(f.amount).replace(",", ".")) > 0 && f.date;
+    const valid = () => parseMoney(f.amount) > 0 && f.date;
+    const back = () => openCardDetail(f.cardId);
     const draw = () => {
       sheet(`
         <div class="sheet-head">
@@ -715,9 +788,11 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
         </div>
         <div class="stack">
           <label class="amount-wrap"><input id="p-amount" class="num" inputmode="decimal" placeholder="0" value="${esc(f.amount)}" autocomplete="off"><em>₼</em></label>
+          ${state.cards.length > 1 ? `<div class="field"><span>Hansı karta</span><div class="chips">${state.cards.map(c => `
+            <button class="chip" data-paycard="${esc(c.id)}" aria-pressed="${f.cardId === c.id}">${esc(c.name)}</button>`).join("")}</div></div>` : ""}
           <label class="field"><span>Tarix</span><input id="p-date" class="input" type="date" value="${esc(f.date)}"></label>
           <label class="field"><span>Qeyd</span><input id="p-note" class="input" placeholder="İstəyə bağlı" value="${esc(f.note)}" maxlength="120"></label>
-          <p class="note">Bu məbləğ xərclərə əlavə olunmur, yalnız taksit kartının borcunu azaldır.</p>
+          <p class="note">Bu məbləğ xərclərə əlavə olunmur, yalnız kartın borcunu azaldır.</p>
           ${editing ? `<button class="danger ${confirmDel ? "confirm" : ""}" data-del>${confirmDel ? "Silməyi təsdiqləyin" : "Ödənişi sil"}</button>` : ""}
         </div>`);
       $("#p-amount").addEventListener("input", e => { f.amount = e.target.value; $("[data-save]").disabled = !valid(); });
@@ -726,16 +801,17 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     };
     sheetHandler = e => {
       const t = e.target.closest("button"); if (!t) return;
-      if (t.hasAttribute("data-back")) openCardSheet();
+      if (t.hasAttribute("data-back")) back();
+      else if (t.dataset.paycard) { f.cardId = t.dataset.paycard; draw(); }
       else if (t.hasAttribute("data-del")) {
         if (!confirmDel) { confirmDel = true; draw(); }
-        else { store.deleteRecord(f.id); toast("Silindi"); openCardSheet(); }
+        else { store.deleteRecord(f.id); toast("Silindi"); back(); }
       }
       else if (t.hasAttribute("data-save")) {
         if (!valid()) return;
-        const amount = Math.round(parseFloat(String(f.amount).replace(",", ".")) * 100) / 100;
-        store.saveRecord({ id: f.id, kind: "cardpay", amount, date: f.date, note: (f.note || "").trim(), created: f.created || Date.now() });
-        toast(editing ? "Yeniləndi" : "Ödəniş qeyd edildi"); openCardSheet();
+        const amount = Math.round(parseMoney(f.amount) * 100) / 100;
+        store.saveRecord({ id: f.id, kind: "cardpay", cardId: f.cardId, amount, date: f.date, note: (f.note || "").trim(), created: f.created || Date.now() });
+        toast(editing ? "Yeniləndi" : "Ödəniş qeyd edildi"); back();
       }
     };
     draw();
@@ -925,7 +1001,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
       // 4. Bütün əməliyyatlar
       const ops = [["Tarix", "Növ", "Başlıq", "Maddə", "Məbləğ", "Qeyd"]];
       d.recs.slice().sort((a, b) => a.date.localeCompare(b.date)).forEach(r => ops.push([
-        r.date.split("-").reverse().join("."), r.kind === "income" ? "Gəlir" : r.kind === "cardpay" ? "Karta ödəniş" : isCardExp(r) ? "Xərc (taksit kartı)" : "Xərc",
+        r.date.split("-").reverse().join("."), r.kind === "income" ? "Gəlir" : r.kind === "cardpay" ? `Karta ödəniş (${cardName(r)})` : isCardExp(r) ? `Xərc (${cardName(r)})` : "Xərc",
         r.kind === "expense" ? (TYPE[r.type]?.title || "") : "", r.kind === "cardpay" ? "" : catById(r.catId)?.name || "Kateqoriyasız",
         r2(Number(r.amount) || 0), r.note || ""
       ]));
@@ -1192,13 +1268,13 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 
   function rowHtml(r) {
     if (r.kind === "cardpay") return `<button class="row" data-edit="${esc(r.id)}">
-      ${badge("Taksit")}
-      <span class="t"><div>Taksit kartına ödəniş</div><div class="sub">${["Xərc deyil", r.note].filter(Boolean).map(esc).join(" · ")}</div></span>
+      ${badge(cardName(r))}
+      <span class="t"><div>Karta ödəniş</div><div class="sub">${[cardName(r), "Xərc deyil", r.note].filter(Boolean).map(esc).join(" · ")}</div></span>
       <span class="amt num muted">${money(Number(r.amount))}</span>
     </button>`;
     const c = catById(r.catId);
     const name = c?.name || "Kateqoriyasız";
-    const sub = [r.kind === "income" ? "Gəlir" : TYPE[r.type]?.title, isCardExp(r) ? "Taksit kartı" : "", r.note].filter(Boolean).map(esc).join(" · ");
+    const sub = [r.kind === "income" ? "Gəlir" : TYPE[r.type]?.title, isCardExp(r) ? cardName(r) : "", r.note].filter(Boolean).map(esc).join(" · ");
     return `<button class="row" data-edit="${esc(r.id)}">
       ${badge(name)}
       <span class="t"><div>${esc(name)}</div><div class="sub">${sub}</div></span>
@@ -1267,7 +1343,8 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
           <div class="field"><span>Necə ödənildi</span><div class="seg">
             <button data-pay="balance" aria-pressed="${f.pay !== "card"}">Öz balansım</button>
             <button data-pay="card" aria-pressed="${f.pay === "card"}">Taksit kartı</button>
-          </div></div>` : ""}
+          </div>${f.pay === "card" && state.cards.length > 1 ? `<div class="chips" style="margin-top:8px">${state.cards.map(c => `
+            <button class="chip" data-paycard="${esc(c.id)}" aria-pressed="${(f.cardId || state.cards[0].id) === c.id}">${esc(c.name)}</button>`).join("")}</div>` : ""}</div>` : ""}
           <div class="field"><span>${f.kind === "expense" ? "Xərc maddəsi" : "Gəlir mənbəyi"}</span>
             <div class="list">
               <button class="row picker" data-togglecats aria-expanded="${catOpen}">
@@ -1299,13 +1376,14 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
       else if (t.hasAttribute("data-togglecats")) { catOpen = !catOpen; draw(); }
       else if (t.dataset.type) { f.type = t.dataset.type; draw(); }
       else if (t.dataset.pay) { f.pay = t.dataset.pay; draw(); }
+      else if (t.dataset.paycard) { f.cardId = t.dataset.paycard; draw(); }
       else if (t.dataset.pick) { f.catId = t.dataset.pick; catOpen = false; draw(); }
       else if (t.hasAttribute("data-save")) {
         const amount = Math.round(parseFloat(String(f.amount).replace(",", ".")) * 100) / 100;
         if (!(amount > 0) || !f.catId || !f.date) return;
         const rec = { id: f.id, kind: f.kind, amount, catId: f.catId, date: f.date, note: (f.note || "").trim(), created: f.created || Date.now() };
         if (f.kind === "expense") rec.type = f.type;
-        if (f.kind === "expense" && f.pay === "card") rec.pay = "card";
+        if (f.kind === "expense" && f.pay === "card") { rec.pay = "card"; rec.cardId = f.cardId || (record && record.pay === "card" ? cardIdOf(record) : state.cards[0]?.id || DEFAULT_CARD); }
         store.saveRecord(rec);
         onSaved && onSaved(rec);
         const d = parseYmd(rec.date);
@@ -1658,7 +1736,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     else if (b.dataset.cat) { const c = catById(b.dataset.cat); c && openCatSheet(c); }
     else if (b.hasAttribute("data-newcat")) openCatSheet(null);
     else if (b.hasAttribute("data-backup")) {
-      const data = { app: "budcem", version: 1, saved: new Date().toISOString(), categories: state.categories, records: state.records, reminders: state.reminders, done: state.done, plan: state.plan, cardOpening: state.cardOpening, catsVersion: state.catsVersion };
+      const data = { app: "budcem", version: 1, saved: new Date().toISOString(), categories: state.categories, records: state.records, reminders: state.reminders, done: state.done, plan: state.plan, cards: state.cards, catsVersion: state.catsVersion };
       saveFile(`Budcem-nusxe-${ymd(new Date())}.json`, new Blob([JSON.stringify(data)], { type: "application/json" }));
       try { localStorage.setItem(BACKUP_KEY, String(Date.now())); } catch (e) {}
       render();
@@ -1679,7 +1757,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
         state.reminders = d.reminders || [];
         state.done = d.done || {};
         state.plan = normPlan(d.plan);
-        state.cardOpening = Number(d.cardOpening) || 0;
+        state.cards = normCards(d.cards, d.cardOpening);
         state.catsVersion = d.catsVersion || 1;
         upgradeCats();
         store.persistLocal(); render();
