@@ -2544,7 +2544,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
   $("#prevM").addEventListener("click", () => { state.month = new Date(state.month.getFullYear(), state.month.getMonth() - 1, 1); render(); });
   $("#nextM").addEventListener("click", () => { state.month = new Date(state.month.getFullYear(), state.month.getMonth() + 1, 1); render(); });
   $("#fab").addEventListener("click", () => state.ready && openRecordSheet(null));
-  // Sola sürüşdürmə: sətir 76px açılır və zibil qabı görünür
+  // Sola sürüşdürmə: sətir 76px açılır və zibil qabı görünür. Açıq sətri yenidən sola sürüşdürmək onu silir.
   let sw = null, suppressClick = 0;
   const closeSwipes = except => document.querySelectorAll(".swipe.open").forEach(x => x !== except && x.classList.remove("open"));
   $("#view").addEventListener("touchstart", e => {
@@ -2561,10 +2561,17 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
     if (sw.dir !== "h") return;
     sw.dx = dx;
     sw.s.classList.add("dragging");
-    sw.row.style.transform = `translateX(${Math.max(-110, Math.min(0, sw.base + dx))}px)`;
+    sw.row.style.transform = `translateX(${Math.max(sw.base ? -sw.s.offsetWidth : -110, Math.min(0, sw.base + dx))}px)`;
   }, { passive: true });
   $("#view").addEventListener("touchend", () => {
     if (!sw) return;
+    if (sw.dir === "h" && sw.base && sw.dx < -30) {
+      const { s, row } = sw, id = s.querySelector(".swipe-del")?.dataset.delrec;
+      row.style.transition = "transform .18s ease-in"; row.style.transform = "translateX(-100%)";
+      suppressClick = Date.now() + 400; sw = null;
+      setTimeout(() => { if (id) { store.deleteRecord(id); toast("Silindi"); } }, 180);
+      return;
+    }
     if (sw.dir === "h") {
       sw.s.classList.remove("dragging");
       sw.row.style.transform = "";
