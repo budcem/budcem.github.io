@@ -355,6 +355,9 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
 .tile b { display: block; font-size: 15px; font-weight: 600; }
 .tile span.s { display: block; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tile.warn span.s { color: var(--credit); font-weight: 600; }
+.limit-alerts .la { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 15px; }
+.limit-alerts .la:first-of-type { border-top: 0; }
+.limit-alerts .la.over span:last-child { color: var(--expense); font-weight: 600; }
 .tile > div { min-width: 0; }
 .tbl-wrap { overflow-x: auto; background: var(--surface); border-radius: 14px; box-shadow: var(--shadow); -webkit-overflow-scrolling: touch; }
 .tbl { border-collapse: separate; border-spacing: 0; font-size: 13px; font-variant-numeric: tabular-nums; min-width: 100%; }
@@ -1665,6 +1668,25 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
     return netOf(state.records.filter(r => r.date && r.date < start));
   }
 
+  // Plan limitlərinə (başlıq və maddə) cari ay üzrə yaxınlaşma və aşılma xəbərdarlığı
+  function limitAlerts() {
+    const exp = monthRecords().filter(r => r.kind === "expense");
+    const P = state.plan;
+    const out = [];
+    const check = (name, v, p) => { if (p > 0 && v >= p * 0.8) out.push({ name, v, p }); };
+    TYPES.forEach(t => check(t.title, sum(exp.filter(r => r.type === t.id)), Number(P.types[t.id]) || 0));
+    state.categories.filter(c => c.kind === "expense").forEach(c => check(c.name, sum(exp.filter(r => r.catId === c.id)), Number(P.cats[c.id]) || 0));
+    return out.sort((a, b) => b.v / b.p - a.v / a.p);
+  }
+  function limitAlertsHtml() {
+    const al = limitAlerts();
+    if (!al.length) return "";
+    return `<section class="card limit-alerts">
+      <p class="label">Limit xəbərdarlığı · ${MONTHS[state.month.getMonth()]}</p>
+      ${al.map(a => `<div class="la ${a.v > a.p ? "over" : ""}"><span>${esc(a.name)}</span><span class="num">${money(a.v)} / ${money(a.p)} · ${a.v > a.p ? `${money(a.v - a.p)} aşılıb` : `${Math.round(a.v / a.p * 100)}%`}</span></div>`).join("")}
+    </section>`;
+  }
+
   function summaryView() {
     const list = monthRecords();
     const exp = list.filter(r => r.kind === "expense");
@@ -1720,6 +1742,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
       ${newsCard()}
       ${localMergeNag()}
       ${backupNag()}
+      ${limitAlertsHtml()}
       ${toolTiles()}
       <section class="card">
         <div class="seg three" role="group" aria-label="Hesabat dövrü">

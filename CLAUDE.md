@@ -32,3 +32,6 @@ Dəyişiklikdən sonra Playwright ilə iPhone ölçüsündə (390px) açıb əsa
 - Xarici valyuta yazılarında əlavə sahələr: `cur` ("USD"|"EUR"), `orig` (valyutada məbləğ), `rate` (1 valyuta = neçə ₼). Sətirdə "10 $ (kurs 1,75)" görünür.
 - Kurs standart: USD 1,70, EUR 2,00 (təxmini). Son istifadə olunan kurs `budcem.rate.<KOD>` localStorage-da qalır. Kurs saytda avtomatik yenilənmir.
 - Kart ödənişi, köçürmə və xatırladıcılar hələ yalnız manatla işləyir.
+
+## Limit xəbərdarlığı
+- Plan limitləri (başlıq və maddə, aylıq) Xülasədə "Limit xəbərdarlığı" kartında göstərilir: limitin 80%-i və ya üzərində olanlar, aşılanlar qırmızı. `limitAlerts()` / `limitAlertsHtml()` funksiyaları.
