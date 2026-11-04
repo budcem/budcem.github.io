@@ -1055,19 +1055,32 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
       d.records.forEach(r => { const { id, ...body } = r; this.putRec(id, body).catch(() => {}); });
       this.saveMeta();
     },
-    async saveRecord(r) {
+    // Geri alma tarixçəsi: hər əməliyyatın əvvəlki halı yadda saxlanır (son 30)
+    history: [],
+    pushHistory(entry) { this.history.push({ ...entry, t: Date.now() }); if (this.history.length > 30) this.history.shift(); },
+    async saveRecord(r, fromUndo) {
       const i = state.records.findIndex(x => x.id === r.id);
+      if (!fromUndo) this.pushHistory({ kind: "save", id: r.id, prev: i >= 0 ? state.records[i] : null });
       if (i >= 0) state.records[i] = r; else state.records.push(r);
       render();
       if (this.mode === "local") return this.persistLocal();
       const { id, ...body } = r;
       try { await this.putRec(id, body); } catch (e) { toast(e?.code === "quota_exceeded" ? "Yaddaş limiti dolub." : "Yadda saxlamaq alınmadı. Yenidən cəhd edin."); }
     },
-    async deleteRecord(id) {
+    async deleteRecord(id, fromUndo) {
+      const prev = state.records.find(r => r.id === id);
+      if (prev && !fromUndo) this.pushHistory({ kind: "delete", id, prev });
       state.records = state.records.filter(r => r.id !== id);
       render();
       if (this.mode === "local") return this.persistLocal();
       try { await this.recs.doc(id).delete(); } catch (e) { toast("Silmək alınmadı."); }
+    },
+    // Son əməliyyatı geri qaytarır: yeni yazı silinir, dəyişdirilən və silinən yazı əvvəlki halına qayıdır
+    undo() {
+      const h = this.history.pop(); if (!h) return false;
+      if (h.kind === "save" && !h.prev) this.deleteRecord(h.id, true);
+      else this.saveRecord(h.prev, true);
+      return true;
     },
     dropOldDefaults() {
       const keep = state.reminders.filter(r => OLD_DEFAULT_REMINDERS[r.id] !== r.title);
@@ -1942,6 +1955,9 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
       </section>
       ${state.profile.photo ? `<button class="link" style="justify-self:center" data-delphoto>Şəkli sil</button>` : ""}
       <section class="card acct">
+        <button class="secondary" id="shakeBtn" style="width:100%">${shakeLabel()}</button>
+      </section>
+      <section class="card acct">
         <span style="flex:1">Tünd rejim</span>
         <button class="switch" id="themeBtn" role="switch" aria-checked="${isDark()}" aria-label="Tünd rejim"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
       </section>
@@ -2044,7 +2060,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
     b.innerHTML = want ? `<img src="${esc(want)}" alt="">` : GEAR_SVG;
     paintBell();
   }
-  function settingsAction(b) {
+  async function settingsAction(b) {
     if (b.hasAttribute("data-backup")) {
       const data = { app: "budcem", version: 1, saved: new Date().toISOString(), categories: state.categories, records: state.records, reminders: state.reminders, done: state.done, plan: state.plan, cards: state.cards, profile: state.profile, catsVersion: state.catsVersion };
       saveFile(`Budcem-nusxe-${ymd(new Date())}.json`, new Blob([JSON.stringify(data)], { type: "application/json" }));
@@ -2055,6 +2071,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
     else if (b.hasAttribute("data-logout")) { closeSheet(); store.signOut(); }
     else if (b.hasAttribute("data-addemail")) openAddEmail();
     else if (b.hasAttribute("data-changepass")) openChangePass();
+    else if (b.id === "shakeBtn") { await setShake(!shakeOn); openSettings(); }
     else if (b.hasAttribute("data-feedback")) openFeedback();
     else if (b.id === "themeBtn") window.toggleMode();
     else if (b.hasAttribute("data-photo")) $("#photoFile")?.click();
@@ -2546,9 +2563,37 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
   document.addEventListener("keydown", e => { if (e.key === "Escape") closeSheet(); });
 
   let toastTimer;
+  // Son əməliyyatdan dərhal sonra çıxan bildiriş "Geri al" düyməsi ilə gəlir (5 saniyə)
   function toast(msg) {
-    $("#toastRoot").innerHTML = `<div class="toast" role="status">${esc(msg)}</div>`;
-    clearTimeout(toastTimer); toastTimer = setTimeout(() => { $("#toastRoot").innerHTML = ""; }, 2200);
+    let undo = false;
+    try { const last = store.history.at(-1); undo = !!last && Date.now() - last.t < 400; } catch (e) {}
+    $("#toastRoot").innerHTML = `<div class="toast" role="status">${esc(msg)}${undo ? ` <button class="undo-btn" data-undo>Geri al</button>` : ""}</div>`;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { $("#toastRoot").innerHTML = ""; }, undo ? 5000 : 2200);
+  }
+  document.addEventListener("click", e => {
+    if (!e.target.closest("[data-undo]")) return;
+    clearTimeout(toastTimer); $("#toastRoot").innerHTML = "";
+    if (store.undo()) toast("Geri alındı"); else toast("Geri alınacaq əməliyyat yoxdur");
+  });
+  // Silkələyəndə geri al (iPhone-dakı kimi). iOS-da icazə üçün bir düymə basmaq lazımdır.
+  const SHAKE_KEY = "budcem.shakeUndo";
+  let shakeOn = false, lastShake = 0;
+  const shakeLabel = () => `Silkələyəndə geri al: ${shakeOn ? "Açıq" : "Bağlı"}`;
+  function onMotion(e) {
+    const a = e.accelerationIncludingGravity; if (!a) return;
+    const m = Math.sqrt((a.x || 0) ** 2 + (a.y || 0) ** 2 + (a.z || 0) ** 2);
+    const now = Date.now();
+    if (m > 26 && now - lastShake > 1500) { lastShake = now; if (store.undo()) toast("Geri alındı"); }
+  }
+  async function setShake(on) {
+    if (on) {
+      try { if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") { if (await DeviceMotionEvent.requestPermission() !== "granted") return false; } }
+      catch (e) { return false; }
+      window.addEventListener("devicemotion", onMotion);
+    } else window.removeEventListener("devicemotion", onMotion);
+    shakeOn = on;
+    try { localStorage.setItem(SHAKE_KEY, on ? "1" : "0"); } catch (e) {}
+    return on;
   }
 
   // ---------- Hadisələr ----------
@@ -2658,6 +2703,11 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
 
   render();
   store.init();
+  // Açılışda: əgər əvvəl açılıbsa və icazə lazım deyilsə (Android), dinləməyə başla. iOS-da bir dəfə düyməyə basmaq lazımdır.
+  try {
+    const needsTap = typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function";
+    if (localStorage.getItem(SHAKE_KEY) === "1" && !needsTap) setShake(true);
+  } catch (e) {}
 
   // ---------- Görünüş (açıq / tünd rejim) ----------
   // Açarla seçilən rejim bu cihazda yadda qalır; seçim edilməyibsə, telefonun ayarı istifadə olunur
