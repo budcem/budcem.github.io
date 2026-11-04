@@ -2550,18 +2550,10 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
   document.addEventListener("keydown", e => { if (e.key === "Escape") closeSheet(); });
 
   let toastTimer;
-  // Son əməliyyatdan dərhal sonra çıxan bildiriş "Geri al" düyməsi ilə gəlir (5 saniyə)
   function toast(msg) {
-    let undo = false;
-    try { const last = store.history.at(-1); undo = !!last && Date.now() - last.t < 400; } catch (e) {}
-    $("#toastRoot").innerHTML = `<div class="toast" role="status">${esc(msg)}${undo ? ` <button class="undo-btn" data-undo>Geri al</button>` : ""}</div>`;
-    clearTimeout(toastTimer); toastTimer = setTimeout(() => { $("#toastRoot").innerHTML = ""; }, undo ? 5000 : 2200);
+    $("#toastRoot").innerHTML = `<div class="toast" role="status">${esc(msg)}</div>`;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { $("#toastRoot").innerHTML = ""; }, 2200);
   }
-  document.addEventListener("click", e => {
-    if (!e.target.closest("[data-undo]")) return;
-    clearTimeout(toastTimer); $("#toastRoot").innerHTML = "";
-    if (store.undo()) toast("Geri alındı"); else toast("Geri alınacaq əməliyyat yoxdur");
-  });
   // Silkələyəndə geri al (iPhone-dakı kimi). iOS-da icazə üçün bir düymə basmaq lazımdır.
   const SHAKE_KEY = "budcem.shakeUndo";
   let shakeOn = false, lastShake = 0;
