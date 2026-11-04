@@ -90,7 +90,8 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .gear b { font-size: 13px; color: var(--accent); }
 .crop { width: 260px; height: 260px; border-radius: 50%; overflow: hidden; box-shadow: 0 0 0 3px var(--accent); touch-action: none; }
 .crop canvas { width: 260px; height: 260px; display: block; cursor: grab; touch-action: none; }
-.accs { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; margin-top: 10px; align-items: stretch; }
+.accs { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 8px; margin-top: 10px; align-items: stretch; }
+.accs .xfer { grid-column: 1 / -1; }
 .acc { background: var(--surface-2); border-radius: 12px; padding: 8px 10px; min-width: 0; }
 .acc small { display: block; font-size: 12px; color: var(--muted); }
 .acc b { font-size: 15px; white-space: nowrap; }
@@ -344,6 +345,30 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
 .limit-alerts .la { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 15px; }
 .limit-alerts .la:first-of-type { border-top: 0; }
 .limit-alerts .la.over span:last-child { color: var(--expense); font-weight: 600; }
+.accs .xfer { padding: 10px; min-height: 40px; }
+
+/* Sol menyu (drawer) */
+#drawerRoot { position: fixed; inset: 0; z-index: 80; visibility: hidden; }
+#drawerRoot.open { visibility: visible; }
+#drawerRoot .dr-back { position: absolute; inset: 0; background: rgba(0,0,0,.35); opacity: 0; transition: opacity .25s; }
+#drawerRoot.open .dr-back { opacity: 1; }
+#drawerRoot .drawer { position: absolute; top: 0; bottom: 0; left: 0; width: min(84vw, 330px); background: var(--surface); box-shadow: var(--shadow); display: flex; flex-direction: column; padding: calc(env(safe-area-inset-top) + 18px) 16px calc(env(safe-area-inset-bottom) + 18px); overflow-y: auto; transform: translateX(-102%); transition: transform .25s ease; }
+#drawerRoot.open .drawer { transform: none; }
+.dr-profile { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px; border: 0; border-radius: 16px; background: var(--surface-2); color: inherit; font: inherit; text-align: left; margin-bottom: 14px; }
+.dr-av { width: 52px; height: 52px; border-radius: 50%; flex: none; overflow: hidden; display: grid; place-items: center; background: var(--surface); color: var(--accent); box-shadow: inset 0 0 0 1px var(--line); }
+.dr-av img { width: 100%; height: 100%; object-fit: cover; }
+.dr-av svg { width: 26px; height: 26px; }
+.dr-who { flex: 1; min-width: 0; }
+.dr-who b, .dr-who small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dr-who b { font-size: 16px; }
+.dr-who small { color: var(--muted); font-size: 13px; }
+.dr-items { display: flex; flex-direction: column; }
+.dr-items button { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 15px 6px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: inherit; font: inherit; font-size: 16px; text-align: left; }
+.dr-switch { width: 44px; height: 26px; border-radius: 13px; background: var(--line); position: relative; flex: none; transition: background .2s; }
+.dr-switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: transform .2s; }
+#themeBtn[aria-checked="true"] .dr-switch { background: var(--accent); }
+#themeBtn[aria-checked="true"] .dr-switch::after { transform: translateX(18px); }
+.dr-logout { margin-top: auto; width: 100%; padding: 14px; border: 0; border-radius: 14px; background: color-mix(in srgb, var(--expense) 12%, transparent); color: var(--expense); font: inherit; font-weight: 600; }
 .tile > div { min-width: 0; }
 .tbl-wrap { overflow-x: auto; background: var(--surface); border-radius: 14px; box-shadow: var(--shadow); -webkit-overflow-scrolling: touch; }
 .tbl { border-collapse: separate; border-spacing: 0; font-size: 13px; font-variant-numeric: tabular-nums; min-width: 100%; }
@@ -394,7 +419,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
 <div class="wrap">
   <header class="topbar">
     <div class="title-wrap">
-      <button class="gear" id="settingsBtn" aria-label="Ayarlar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+      <button class="gear" id="settingsBtn" aria-label="Menyu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
       <h1 id="title">Xülasə</h1>
     </div>
     <div class="month" id="monthBox">
@@ -511,6 +536,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
     done: {},
     plan: { income: 0, types: {}, cats: {} },
     cards: [],
+    bankCards: [{ id: "bank", name: "Bank kartı" }],
     profile: {},
     // Xülasədə xərc bölgüsünün dövrü: "month" (seçilmiş ay), "all", "range"
     sumPeriod: "month", sumFrom: "", sumTo: "",
@@ -949,6 +975,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
       state.done = data?.done || {};
       state.plan = normPlan(data?.plan);
       state.cards = normCards(data?.cards, data?.cardOpening);
+      state.bankCards = normBanks(data?.bankCards);
       state.profile = data?.profile || {};
       state.catsVersion = data ? (data.catsVersion || 1) : CATS_VERSION;
       state.ready = true;
@@ -957,7 +984,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
       render();
     },
     persistLocal() {
-      try { localStorage.setItem(LS_KEY, JSON.stringify({ categories: state.categories, records: state.records, reminders: state.reminders, done: state.done, plan: state.plan, cards: state.cards, cardOpening: state.cards[0]?.opening || 0, profile: state.profile, catsVersion: state.catsVersion })); }
+      try { localStorage.setItem(LS_KEY, JSON.stringify({ categories: state.categories, records: state.records, reminders: state.reminders, done: state.done, plan: state.plan, cards: state.cards, bankCards: state.bankCards, cardOpening: state.cards[0]?.opening || 0, profile: state.profile, catsVersion: state.catsVersion })); }
       catch (e) { toast("Yadda saxlamaq alınmadı: brauzer yaddaşı əlçatan deyil."); }
     },
     initDb(db, id, path) {
@@ -982,6 +1009,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
           state.done = d.done || {};
           state.plan = normPlan(d.plan);
           state.cards = normCards(d.cards, d.cardOpening);
+          state.bankCards = normBanks(d?.bankCards);
           state.profile = d.profile || {};
           state.catsVersion = d.catsVersion || 1;
           gotCats = true;
@@ -994,6 +1022,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
           state.reminders = seed?.reminders || []; state.done = seed?.done || {};
           state.plan = normPlan(seed?.plan);
           state.cards = normCards(seed?.cards, seed?.cardOpening);
+          state.bankCards = normBanks(seed?.bankCards);
           state.profile = seed?.profile || {};
           state.catsVersion = seed ? (seed.catsVersion || 1) : CATS_VERSION;
           if (seed) upgradeCats();
@@ -1030,6 +1059,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
       state.categories = addMissing(state.categories, seed.categories);
       state.reminders = addMissing(state.reminders, seed.reminders);
       if (Array.isArray(seed.cards)) state.cards = addMissing(state.cards, normCards(seed.cards));
+      if (Array.isArray(seed.bankCards)) state.bankCards = normBanks([...state.bankCards, ...seed.bankCards]);
       const have = new Set(state.records.map(r => r.id));
       const add = (seed.records || []).filter(r => !have.has(r.id));
       add.forEach(r => { const { id, ...body } = r; this.putRec(id, body).catch(() => {}); });
@@ -1046,6 +1076,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
       state.done = d.done || {};
       state.plan = normPlan(d.plan);
       state.cards = normCards(d.cards, d.cardOpening);
+      state.bankCards = normBanks(d?.bankCards);
       state.profile = d.profile || state.profile || {};
       state.catsVersion = d.catsVersion || 1;
       upgradeCats();
@@ -1096,7 +1127,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
     async saveMeta() {
       render();
       if (this.mode === "local") return this.persistLocal();
-      const meta = { categories: state.categories, reminders: state.reminders, done: state.done, plan: state.plan, cards: state.cards, cardOpening: state.cards[0]?.opening || 0, profile: state.profile, catsVersion: state.catsVersion };
+      const meta = { categories: state.categories, reminders: state.reminders, done: state.done, plan: state.plan, cards: state.cards, bankCards: state.bankCards, cardOpening: state.cards[0]?.opening || 0, profile: state.profile, catsVersion: state.catsVersion };
       // catsVersion şifrəsiz də qalır ki, köhnə versiya açılsa, boş məlumatı "yeniləyib" üstünə yazmasın
       try { await this.base.set(this.key ? { ...(await this.wrap(meta)), catsVersion: state.catsVersion } : meta); }
       catch (e) { toast("Yadda saxlamaq alınmadı. Yenidən cəhd edin."); }
@@ -1122,6 +1153,12 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
     return true;
   }
   // Kartlar: köhnə məlumatda yalnız cardOpening var idi, o ilk karta ("card1") köçürülür
+  // Bank kartları: köhnə yazılar "bank" id-li karta aiddir, buna görə bu kart həmişə olmalıdır
+  function normBanks(banks) {
+    const list = Array.isArray(banks) ? banks.filter(b => b && b.id).map(b => ({ id: String(b.id), name: String(b.name || "Bank kartı") })) : [];
+    if (!list.some(b => b.id === "bank")) list.unshift({ id: "bank", name: "Bank kartı" });
+    return list;
+  }
   function normCards(cards, cardOpening) {
     if (Array.isArray(cards) && cards.length) return cards.map(c => ({ id: String(c.id), name: String(c.name || "Kart"), limit: Number(c.limit) || 0, opening: Number(c.opening) || 0 }));
     return [{ id: "card1", name: "Taksit kartı", limit: 0, opening: Number(cardOpening) || 0 }];
@@ -1180,9 +1217,9 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
         <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></span>
         <div><b>Ödənişlər</b><span class="s">${sub}</span></div>
       </button>
-      <button class="tile" data-report>
-        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg></span>
-        <div><b>Hesabat</b><span class="s">Aylar və maddələr</span></div>
+      <button class="tile" data-openbank>
+        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19"/></svg></span>
+        <div><b>Bank kartları</b><span class="s">${state.bankCards.length > 1 ? `${state.bankCards.length} kart` : "Yeni kart əlavə edin"}</span></div>
       </button>
       <button class="tile wide" data-opencard>
         <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19M6.5 15h4"/></svg></span>
@@ -1334,6 +1371,78 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
     draw();
   }
 
+  // ---------- Bank kartları ----------
+  const bankUsed = id => state.records.some(r => accOf(r) === id || r.from === id || r.to === id);
+  function openBankSheet() {
+    const END = "9999-12-31";
+    const total = state.bankCards.reduce((a, b) => a + accBalance(b.id, END), 0);
+    sheet(`
+      <div class="sheet-head">
+        <button class="link" data-close>Bağla</button>
+        <h2>Bank kartları</h2>
+        <span></span>
+      </div>
+      <div class="stack">
+        <div class="list">${state.bankCards.map(b => {
+          const v = accBalance(b.id, END);
+          return `<button class="row" data-bank="${esc(b.id)}">
+            ${badge(b.name)}
+            <span class="t"><div>${esc(b.name)}</div><div class="sub">${bankUsed(b.id) ? "Əməliyyat var" : "Hələ əməliyyat yoxdur"}</div></span>
+            <span class="amt num ${v < 0 ? "bal-neg" : ""}">${money(v)}</span>
+          </button>`;
+        }).join("")}</div>
+        ${state.bankCards.length > 1 ? `<p class="note" style="text-align:left;margin:0">Bank kartlarının cəmi: ${money(total)}</p>` : ""}
+        <button class="secondary" data-newbank>+ Yeni bank kartı</button>
+        <p class="note">Əməliyyat yazanda hansı bank kartına aid olduğunu seçin. Kartlar arasında pul köçürmək üçün "Köçürmə" düyməsini istifadə edin.</p>
+      </div>`);
+    sheetHandler = e => {
+      const t = e.target.closest("button"); if (!t) return;
+      if (t.dataset.bank) openBankEdit(t.dataset.bank);
+      else if (t.hasAttribute("data-newbank")) openBankEdit(null);
+    };
+  }
+
+  function openBankEdit(id) {
+    const b = id ? state.bankCards.find(x => x.id === id) : null;
+    if (id && !b) return openBankSheet();
+    let name = b?.name || "";
+    let confirmDel = false;
+    const used = b ? bankUsed(b.id) : false;
+    const draw = () => {
+      sheet(`
+        <div class="sheet-head">
+          <button class="link" data-back>‹ Bank kartları</button>
+          <h2>${b ? esc(b.name) : "Yeni bank kartı"}</h2>
+          <button class="link save" data-savebank>Saxla</button>
+        </div>
+        <div class="stack">
+          <label class="field"><span>Kartın adı</span><input id="bk-name" class="input" maxlength="30" placeholder="Məsələn: Kapital Bank" value="${esc(name)}"></label>
+          ${b && b.id !== "bank" && !used ? `<button class="danger ${confirmDel ? "confirm" : ""}" data-delbank>${confirmDel ? "Silməyi təsdiqləyin" : "Kartı sil"}</button>` : ""}
+          ${b && used ? `<p class="note" style="text-align:left">Bu karta əməliyyat yazılıb, ona görə silmək olmur.</p>` : ""}
+          ${b && b.id === "bank" ? `<p class="note" style="text-align:left">Əvvəlki bütün əməliyyatlar bu kartdadır, ona görə bu kart silinmir.</p>` : ""}
+        </div>`);
+      $("#bk-name").addEventListener("input", e => { name = e.target.value; });
+    };
+    sheetHandler = e => {
+      const t = e.target.closest("button"); if (!t) return;
+      if (t.hasAttribute("data-back")) return openBankSheet();
+      if (t.hasAttribute("data-savebank")) {
+        const clean = name.trim();
+        if (!clean) return toast("Kartın adını yazın.");
+        if (b) state.bankCards = state.bankCards.map(x => x.id === b.id ? { ...x, name: clean } : x);
+        else state.bankCards = [...state.bankCards, { id: "bank-" + uid().slice(0, 10), name: clean }];
+        store.saveMeta(); render(); openBankSheet(); toast(b ? "Yadda saxlandı" : "Bank kartı əlavə edildi");
+        return;
+      }
+      if (t.hasAttribute("data-delbank")) {
+        if (!confirmDel) { confirmDel = true; draw(); return; }
+        state.bankCards = state.bankCards.filter(x => x.id !== b.id);
+        store.saveMeta(); render(); openBankSheet(); toast("Kart silindi");
+      }
+    };
+    draw();
+  }
+
   // Hesablar arası köçürmə: bank kartından nağda (bankomatdan pul çıxarmaq) və ya əksinə
   function openTransferSheet(rec) {
     const editing = !!rec;
@@ -1341,7 +1450,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
                   : { id: uid(), kind: "transfer", from: "bank", to: "cash", amount: "", date: ymd(new Date()), note: "", created: Date.now() };
     if (!editing && monthKey(state.month) !== monthKey(new Date())) f.date = ymd(new Date(state.month.getFullYear(), state.month.getMonth(), 1));
     let confirmDel = false;
-    const valid = () => parseMoney(f.amount) > 0 && f.date;
+    const valid = () => parseMoney(f.amount) > 0 && f.date && f.from !== f.to;
     const draw = () => {
       sheet(`
         <div class="sheet-head">
@@ -1350,14 +1459,12 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
           <button class="link save" data-save ${valid() ? "" : "disabled"}>Saxla</button>
         </div>
         <div class="stack">
-          <div class="seg">
-            <button data-dir="bank" aria-pressed="${f.from === "bank"}">Kartdan nağda</button>
-            <button data-dir="cash" aria-pressed="${f.from === "cash"}">Nağddan karta</button>
-          </div>
+          <div class="field"><span>Haradan</span><div class="chips">${accList().map(a => `<button class="chip" data-from="${esc(a.id)}" aria-pressed="${f.from === a.id}">${esc(a.name)}</button>`).join("")}</div></div>
+          <div class="field"><span>Hara</span><div class="chips">${accList().map(a => `<button class="chip" data-to="${esc(a.id)}" aria-pressed="${f.to === a.id}">${esc(a.name)}</button>`).join("")}</div></div>
           <label class="amount-wrap"><input id="p-amount" class="num" inputmode="decimal" placeholder="0" value="${esc(f.amount)}" autocomplete="off"><em>₼</em></label>
           <label class="field"><span>Tarix</span><input id="p-date" class="input" type="date" value="${esc(f.date)}"></label>
           <label class="field"><span>Qeyd</span><input id="p-note" class="input" placeholder="İstəyə bağlı, məs. bankomat" value="${esc(f.note)}" maxlength="120"></label>
-          <p class="note">Köçürmə xərc və ya gəlir sayılmır: ümumi qalıq dəyişmir, yalnız pul ${accName(f.from)} hesabından ${accName(f.to)} hesabına keçir.</p>
+          <p class="note">Köçürmə xərc və ya gəlir sayılmır: ümumi qalıq dəyişmir, yalnız pul ${esc(accName(f.from))} hesabından ${esc(accName(f.to))} hesabına keçir.</p>
           ${editing ? `<button class="danger ${confirmDel ? "confirm" : ""}" data-del>${confirmDel ? "Silməyi təsdiqləyin" : "Köçürməni sil"}</button>` : ""}
         </div>`);
       $("#p-amount").addEventListener("input", e => { f.amount = e.target.value; $("[data-save]").disabled = !valid(); });
@@ -1366,7 +1473,8 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
     };
     sheetHandler = e => {
       const t = e.target.closest("button"); if (!t) return;
-      if (t.dataset.dir) { f.from = t.dataset.dir; f.to = f.from === "bank" ? "cash" : "bank"; draw(); }
+      if (t.dataset.from) { f.from = t.dataset.from; if (f.to === f.from) f.to = accList().find(a => a.id !== f.from).id; draw(); }
+      else if (t.dataset.to) { f.to = t.dataset.to; if (f.from === f.to) f.from = accList().find(a => a.id !== f.to).id; draw(); }
       else if (t.hasAttribute("data-del")) {
         if (!confirmDel) { confirmDel = true; draw(); }
         else { store.deleteRecord(f.id); toast("Silindi"); closeSheet(); }
@@ -1402,7 +1510,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
           <div class="field"><span>Hansı hesabdan</span><div class="seg">
             <button data-pacc="bank" aria-pressed="${f.acc !== "cash"}">Bank kartı</button>
             <button data-pacc="cash" aria-pressed="${f.acc === "cash"}">Nağd</button>
-          </div></div>
+          </div>${f.acc !== "cash" ? bankChips(bankSel(f), "pbank") : ""}</div>
           <label class="field"><span>Tarix</span><input id="p-date" class="input" type="date" value="${esc(f.date)}"></label>
           <label class="field"><span>Qeyd</span><input id="p-note" class="input" placeholder="İstəyə bağlı" value="${esc(f.note)}" maxlength="120"></label>
           <p class="note">Bu məbləğ xərclərə əlavə olunmur, yalnız kartın borcunu azaldır.</p>
@@ -1417,6 +1525,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
       if (t.hasAttribute("data-back")) back();
       else if (t.dataset.paycard) { f.cardId = t.dataset.paycard; draw(); }
       else if (t.dataset.pacc) { f.acc = t.dataset.pacc; draw(); }
+      else if (t.dataset.pbank) { f.acc = t.dataset.pbank; draw(); }
       else if (t.hasAttribute("data-del")) {
         if (!confirmDel) { confirmDel = true; draw(); }
         else { store.deleteRecord(f.id); toast("Silindi"); back(); }
@@ -1424,7 +1533,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
       else if (t.hasAttribute("data-save")) {
         if (!valid()) return;
         const amount = Math.round(parseMoney(f.amount) * 100) / 100;
-        store.saveRecord({ id: f.id, kind: "cardpay", cardId: f.cardId, amount, date: f.date, note: (f.note || "").trim(), created: f.created || Date.now(), ...(f.acc === "cash" ? { acc: "cash" } : {}) });
+        store.saveRecord({ id: f.id, kind: "cardpay", cardId: f.cardId, amount, date: f.date, note: (f.note || "").trim(), created: f.created || Date.now(), ...accPatch(f.acc) });
         toast(editing ? "Yeniləndi" : "Ödəniş qeyd edildi"); back();
       }
     };
@@ -1638,9 +1747,17 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
     - sum(list.filter(r => r.kind === "cardpay"));
   // Hesablar: "bank" (bank kartı; köhnə yazıların hamısı buradadır) və "cash" (nağd).
   // Köçürmə (kind: "transfer", from, to) xərc və ya gəlir deyil, yalnız pulu bir hesabdan digərinə keçirir.
-  const ACCS = [{ id: "bank", name: "Bank kartı" }, { id: "cash", name: "Nağd" }];
-  const accName = id => ACCS.find(a => a.id === id)?.name || "Bank kartı";
-  const accOf = r => r.acc === "cash" ? "cash" : "bank";
+  // Bank kartları çoxdur (state.bankCards); acc = bank kartının id-si, "cash" nağddır, boş = "bank"
+  const accList = () => [...state.bankCards.map(b => ({ id: b.id, name: b.name })), { id: "cash", name: "Nağd" }];
+  const accName = id => accList().find(a => a.id === id)?.name || "Bank kartı";
+  const accOf = r => r.acc === "cash" ? "cash" : (r.acc && r.acc !== "bank" ? r.acc : "bank");
+  // Əməliyyatın hesab sahəsi (köhnə "bank" yazılarında heç nə yazılmır)
+  const accPatch = acc => (acc === "cash" || (acc && acc !== "bank" && state.bankCards.some(b => b.id === acc)) ? { acc } : {});
+  const accLabel = r => (r.acc === "cash" ? "Nağd" : (r.acc && r.acc !== "bank" ? accName(r.acc) : ""));
+  // Bank kartı seçimi çipləri (yalnız bir neçə bank kartı varsa)
+  const bankSel = f => (f.acc && f.acc !== "cash" ? f.acc : "bank");
+  const bankChips = (sel, attr) => state.bankCards.length > 1 ? `<div class="chips" style="margin-top:8px">${state.bankCards.map(b => `
+            <button class="chip" data-${attr}="${esc(b.id)}" aria-pressed="${sel === b.id}">${esc(b.name)}</button>`).join("")}</div>` : "";
   function accDelta(r, acc) {
     const a = Number(r.amount) || 0;
     if (r.kind === "transfer") return (r.to === acc ? a : 0) - (r.from === acc ? a : 0);
@@ -1715,6 +1832,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
     const max = cats[0]?.[1] || 1;
 
     return `
+      ${toolTiles()}
       <section class="card balance">
         <p class="label">Qalıq<button class="eye-btn" data-hidebal aria-pressed="${!!state.hideBal}" aria-label="${state.hideBal ? "Rəqəmləri göstər" : "Rəqəmləri gizlət"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${state.hideBal ? `<path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6A17 17 0 0 0 2 12s3.5 7 10 7a9.8 9.8 0 0 0 5.4-1.6"/>` : `<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>`}</svg></button></p>
         <div class="big num ${bal < 0 ? "neg" : ""}">${shownMoney(bal)}</div>
@@ -1723,7 +1841,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
           <div class="out"><small>Xərc</small><b class="num">${shownMoney(out)}</b></div>
         </div>
         <div class="accs">
-          ${ACCS.map(a => { const v = accBalance(a.id, ymd(new Date(state.month.getFullYear(), state.month.getMonth() + 1, 0))); return `<div class="acc"><small>${a.name}</small><b class="num ${v < 0 ? "neg" : ""}">${shownMoney(v)}</b></div>`; }).join("")}
+          ${accList().map(a => { const v = accBalance(a.id, ymd(new Date(state.month.getFullYear(), state.month.getMonth() + 1, 0))); return `<div class="acc"><small>${a.name}</small><b class="num ${v < 0 ? "neg" : ""}">${shownMoney(v)}</b></div>`; }).join("")}
           <button class="xfer" data-transfer aria-label="Hesablar arası köçürmə">⇄ Köçürmə</button>
         </div>
       </section>
@@ -1731,7 +1849,6 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
       ${localMergeNag()}
       ${backupNag()}
       ${limitAlertsHtml()}
-      ${toolTiles()}
       <section class="card">
         <div class="seg three" role="group" aria-label="Hesabat dövrü">
           <button data-period="month" aria-pressed="${period === "month"}">${MONTHS[m]}</button>
@@ -1937,7 +2054,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
     const c = catById(r.catId);
     const name = c?.name || "Kateqoriyasız";
     const fx = r.cur && r.cur !== "AZN" ? `${plainNum(Number(r.orig))} ${CUR_SYM[r.cur] || r.cur} (kurs ${plainNum(Number(r.rate))})` : "";
-    const sub = [r.sub, r.kind === "income" ? "Gəlir" : TYPE[r.type]?.title, isCardExp(r) ? cardName(r) : r.acc === "cash" ? "Nağd" : "", fx, r.note].filter(Boolean).map(esc).join(" · ");
+    const sub = [r.sub, r.kind === "income" ? "Gəlir" : TYPE[r.type]?.title, isCardExp(r) ? cardName(r) : accLabel(r), fx, r.note].filter(Boolean).map(esc).join(" · ");
     return `<button class="row" data-edit="${esc(r.id)}">
       ${badge(name)}
       <span class="t"><div>${esc(name)}</div><div class="sub">${sub}</div></span>
@@ -1965,11 +2082,12 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
   }
 
   // ---------- Ayarlar (yuxarıdakı dişli ikonu) ----------
+  // Profil səhifəsi: şəkil, ad, e-poçt, şifrə və bərpa kodu (menyudan açılır)
   function openSettings() {
     sheet(`
       <div class="sheet-head">
         <button class="link" data-close>Bağla</button>
-        <h2>Ayarlar</h2>
+        <h2>Profil</h2>
         <span></span>
       </div>
       <div class="stack">
@@ -1979,13 +2097,6 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
         <input type="file" id="photoFile" accept="image/*" hidden>
       </section>
       ${state.profile.photo ? `<button class="link" style="justify-self:center" data-delphoto>Şəkli sil</button>` : ""}
-      <section class="card acct">
-        <button class="secondary" id="shakeBtn" style="width:100%">${shakeLabel()}</button>
-      </section>
-      <section class="card acct">
-        <span style="flex:1">Tünd rejim</span>
-        <button class="switch" id="themeBtn" role="switch" aria-checked="${isDark()}" aria-label="Tünd rejim"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
-      </section>
       ${store.cloud && store.user ? `
       <section class="card" >
         <p class="label">Hesab</p>
@@ -1995,18 +2106,6 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
         ${store.key ? `<button class="secondary" style="margin-top:10px;width:100%" data-newcode>Bərpa kodunu dəyiş</button>` : ""}
         <p class="note" style="text-align:left;margin:10px 0 0">${store.key ? "Məlumatlarınız şifrələnib: onu yalnız siz görürsünüz, tətbiqin sahibi də görə bilməz. İstənilən telefondan bu adla daxil ola bilərsiniz." : "Məlumatlarınız hesabınızda saxlanılır. İstənilən telefondan bu adla daxil olub görə bilərsiniz."}</p>
       </section>` : ""}
-      ${store.mode === "local" || store.cloud ? `
-      <section class="card" >
-        <p class="label">Ehtiyat nüsxə</p>
-        <p class="note" style="text-align:left;margin:0 0 12px">${store.cloud ? "Əlavə təhlükəsizlik üçün məlumatınızın faylını yükləyə və lazım olanda ondan bərpa edə bilərsiniz." : "Məlumatlarınız yalnız bu telefonda saxlanılır. Telefonu dəyişəndə və ya brauzer məlumatlarını siləndə itməsin deyə, vaxtaşırı ehtiyat nüsxə yükləyin."}</p>
-        <div class="split">
-          <button class="secondary" data-backup>Nüsxəni yüklə</button>
-          <button class="secondary" data-restore>Nüsxədən bərpa et</button>
-        </div>
-        <input type="file" id="restoreFile" accept=".json,application/json" hidden>
-      </section>` : ""}
-      ${store.cloud && store.user ? `<button class="secondary fb-btn" data-feedback>✉︎ Bizə müraciət edin${unreadReplies ? `<span class="bell-pill">${BELL_SVG}${unreadReplies}</span>` : ""}</button>
-      <button class="secondary danger" data-logout>Hesabdan çıxış</button>` : ""}
       </div>`);
     sheetHandler = e => { const b = e.target.closest("button"); if (b) settingsAction(b); };
     $("#pf-name").addEventListener("change", e => { state.profile = { ...state.profile, name: e.target.value.trim() }; store.saveMeta(); paintAvatar(); });
@@ -2077,17 +2176,63 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
   const avatarInner = big => state.profile.photo ? `<img src="${esc(state.profile.photo)}" alt="">` : initials() ? `<b>${esc(initials())}</b>` : big ? PERSON_SVG : GEAR_SVG;
   // Yuxarıdakı ayarlar düyməsi: profil şəkli, yoxdursa adın baş hərfləri, o da yoxdursa dişli
   // Yuxarıdakı düymə: profil şəkli varsa şəkil, yoxdursa dişli ikonu
+  // ---------- Sol menyu ----------
+  const MENU_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>`;
+  function drawerHtml() {
+    const photo = state.profile.photo;
+    const who = store.cloud && store.user ? displayName(store.user.email) : "Yerli rejim (bu telefonda)";
+    const dark = isDark();
+    return `<div class="dr-back" data-drclose></div>
+      <nav class="drawer" aria-label="Menyu">
+        <button class="dr-profile" data-go="profile">
+          <span class="dr-av">${photo ? `<img src="${esc(photo)}" alt="">` : PERSON_SVG}</span>
+          <span class="dr-who"><b>${esc(state.profile.name || "Adınız yazılmayıb")}</b><small>${esc(who)}</small></span>
+          <span class="chev">›</span>
+        </button>
+        <div class="dr-items">
+          <button data-go="profile"><span>Profil</span><span class="chev">›</span></button>
+          <button data-go="report"><span>Hesabat</span><span class="chev">›</span></button>
+          <button data-backup><span>Nüsxəni yüklə</span><span class="chev">›</span></button>
+          ${store.mode === "local" || store.cloud ? `<button data-restore><span>Nüsxədən bərpa et</span><span class="chev">›</span></button>` : ""}
+          <button id="themeBtn" role="switch" aria-checked="${dark}"><span>Tünd rejim</span><span class="dr-switch"></span></button>
+          <button id="shakeBtn"><span>${esc(shakeLabel())}</span><span class="chev">›</span></button>
+          ${store.cloud && store.user ? `<button data-feedback><span>Bizə müraciət edin</span>${unreadReplies ? `<span class="bell-pill">${BELL_SVG}${unreadReplies}</span>` : `<span class="chev">›</span>`}</button>` : ""}
+        </div>
+        ${store.cloud && store.user ? `<button class="dr-logout" data-logout>Hesabdan çıxış</button>` : ""}
+      </nav>`;
+  }
+  function openDrawer() {
+    let root = $("#drawerRoot");
+    if (!root) {
+      document.body.insertAdjacentHTML("beforeend", `<div id="drawerRoot"></div>`);
+      root = $("#drawerRoot");
+      root.addEventListener("click", drawerClick);
+    }
+    root.innerHTML = drawerHtml();
+    requestAnimationFrame(() => root.classList.add("open"));
+  }
+  function closeDrawer() { $("#drawerRoot")?.classList.remove("open"); }
+  function refreshDrawer() { const root = $("#drawerRoot"); if (root?.classList.contains("open")) root.innerHTML = drawerHtml(); }
+  function drawerClick(e) {
+    if (e.target.closest("[data-drclose]")) return closeDrawer();
+    const b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.go === "profile") { closeDrawer(); openSettings(); }
+    else if (b.dataset.go === "report") { closeDrawer(); openReport(); }
+    else if (b.hasAttribute("data-feedback")) { closeDrawer(); openFeedback(); }
+    else if (b.hasAttribute("data-logout")) { closeDrawer(); settingsAction(b); }
+    else settingsAction(b); // nüsxə, bərpa, tünd rejim, silkələmə
+  }
+
   function paintAvatar() {
     const b = $("#settingsBtn"); if (!b) return;
-    const want = state.profile.photo || "";
-    if (b._photo === want && b.firstElementChild) return;
-    b._photo = want;
-    b.innerHTML = want ? `<img src="${esc(want)}" alt="">` : GEAR_SVG;
+    if (b._menu) return;
+    b._menu = true;
+    b.innerHTML = MENU_SVG;
     paintBell();
   }
   async function settingsAction(b) {
     if (b.hasAttribute("data-backup")) {
-      const data = { app: "budcem", version: 1, saved: new Date().toISOString(), categories: state.categories, records: state.records, reminders: state.reminders, done: state.done, plan: state.plan, cards: state.cards, profile: state.profile, catsVersion: state.catsVersion };
+      const data = { app: "budcem", version: 1, saved: new Date().toISOString(), categories: state.categories, records: state.records, reminders: state.reminders, done: state.done, plan: state.plan, cards: state.cards, bankCards: state.bankCards, profile: state.profile, catsVersion: state.catsVersion };
       saveFile(`Budcem-nusxe-${ymd(new Date())}.json`, new Blob([JSON.stringify(data)], { type: "application/json" }));
       try { localStorage.setItem(BACKUP_KEY, String(Date.now())); } catch (e) {}
       render();
@@ -2096,7 +2241,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
     else if (b.hasAttribute("data-logout")) { closeSheet(); store.signOut(); }
     else if (b.hasAttribute("data-addemail")) openAddEmail();
     else if (b.hasAttribute("data-changepass")) openChangePass();
-    else if (b.id === "shakeBtn") { await setShake(!shakeOn); openSettings(); }
+    else if (b.id === "shakeBtn") { await setShake(!shakeOn); refreshDrawer(); }
     else if (b.hasAttribute("data-feedback")) openFeedback();
     else if (b.id === "themeBtn") window.toggleMode();
     else if (b.hasAttribute("data-photo")) $("#photoFile")?.click();
@@ -2176,7 +2321,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
     const b = $("#settingsBtn"); if (!b) return;
     let dot = b.querySelector(".bell"); if (!dot) { b.insertAdjacentHTML("beforeend", `<span class="bell" hidden>${BELL_SVG}</span>`); dot = b.querySelector(".bell"); }
     dot.hidden = !unreadReplies;
-    b.setAttribute("aria-label", unreadReplies ? "Ayarlar, yeni cavab var" : "Ayarlar");
+    b.setAttribute("aria-label", unreadReplies ? "Menyu, yeni cavab var" : "Menyu");
   }
   // Tətbiq açılanda bir dəfə: yeni cavab varsa xəbər verilir
   async function checkReplies() {
@@ -2257,11 +2402,11 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
             <button data-pay="bank" aria-pressed="${f.pay !== "card" && f.acc !== "cash"}">Bank kartı</button>
             <button data-pay="cash" aria-pressed="${f.pay !== "card" && f.acc === "cash"}">Nağd</button>
             <button data-pay="card" aria-pressed="${f.pay === "card"}">Taksit kartı</button>
-          </div>${f.pay === "card" && state.cards.length > 1 ? `<div class="chips" style="margin-top:8px">${state.cards.map(c => `
+          </div>${f.pay !== "card" && f.acc !== "cash" ? bankChips(bankSel(f), "bankacc") : ""}${f.pay === "card" && state.cards.length > 1 ? `<div class="chips" style="margin-top:8px">${state.cards.map(c => `
             <button class="chip" data-paycard="${esc(c.id)}" aria-pressed="${(f.cardId || state.cards[0].id) === c.id}">${esc(c.name)}</button>`).join("")}</div>` : ""}</div>` : `<div class="field"><span>Hansı hesaba</span><div class="seg">
             <button data-pay="bank" aria-pressed="${f.acc !== "cash"}">Bank kartı</button>
             <button data-pay="cash" aria-pressed="${f.acc === "cash"}">Nağd</button>
-          </div></div>`}
+          </div>${f.acc !== "cash" ? bankChips(bankSel(f), "bankacc") : ""}</div>`}
           <div class="field"><span>${f.kind === "expense" ? "Xərc maddəsi" : "Gəlir mənbəyi"}</span>
             <div class="list">
               <button class="row picker" data-togglecats aria-expanded="${catOpen}">
@@ -2297,6 +2442,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
       if (t.dataset.kind) { f.kind = t.dataset.kind; f.catId = null; catOpen = false; draw(); }
       else if (t.hasAttribute("data-togglecats")) openPicker(f.kind === "expense" ? "Xərc maddəsi" : "Gəlir mənbəyi", state.categories.filter(c => c.kind === f.kind), f.catId, id => { f.catId = id; if (!isUtil(catById(id))) delete f.sub; draw(); });
       else if (t.dataset.type) { f.type = t.dataset.type; draw(); }
+      else if (t.dataset.bankacc) { f.acc = t.dataset.bankacc; draw(); }
       else if (t.dataset.pay) { if (t.dataset.pay === "card") f.pay = "card"; else { delete f.pay; f.acc = t.dataset.pay === "cash" ? "cash" : undefined; } draw(); }
       else if (t.dataset.paycard) { f.cardId = t.dataset.paycard; draw(); }
       else if (t.dataset.sub) { f.sub = f.sub === t.dataset.sub ? undefined : t.dataset.sub; draw(); }
@@ -2325,7 +2471,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
         }
         if (f.kind === "expense") rec.type = f.type;
         if (f.kind === "expense" && f.sub && isUtil(catById(f.catId))) rec.sub = f.sub;
-        if (!(f.kind === "expense" && f.pay === "card") && f.acc === "cash") rec.acc = "cash";
+        if (!(f.kind === "expense" && f.pay === "card")) Object.assign(rec, accPatch(f.acc));
         if (f.kind === "expense" && f.pay === "card") { rec.pay = "card"; rec.cardId = f.cardId || (record && record.pay === "card" ? cardIdOf(record) : state.cards[0]?.id || DEFAULT_CARD); }
         store.saveRecord(rec);
         onSaved && onSaved(rec);
@@ -2709,6 +2855,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
     if (b.dataset.filter) { state.filter = b.dataset.filter; render(); }
     else if (b.dataset.occ) openOccurrenceSheet(b.dataset.occ);
     else if (b.hasAttribute("data-openrem")) openRemindersSheet();
+    else if (b.hasAttribute("data-openbank")) openBankSheet();
     else if (b.hasAttribute("data-report")) openReport();
     else if (b.dataset.planedit) openPlanEdit(b.dataset.planedit);
     else if (b.hasAttribute("data-planall")) { state.planShowAll = !state.planShowAll; render(); }
@@ -2780,7 +2927,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
   }
   applyMode();
   sysDark?.addEventListener?.("change", applyMode);
-  $("#settingsBtn").addEventListener("click", openSettings);
+  $("#settingsBtn").addEventListener("click", openDrawer);
   // Tünd rejim açarı Ayarlar pəncərəsindədir
   window.toggleMode = () => {
     try { localStorage.setItem(MODE_KEY, isDark() ? "light" : "dark"); } catch (e) {}

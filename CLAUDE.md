@@ -36,3 +36,9 @@ Dəyişiklikdən sonra Playwright ilə iPhone ölçüsündə (390px) açıb əsa
 ## Limit xəbərdarlığı
 - Plan limitləri (başlıq və maddə, aylıq) Xülasədə "Limit xəbərdarlığı" kartında göstərilir: limitin 80%-i və ya üzərində olanlar, aşılanlar qırmızı. `limitAlerts()` / `limitAlertsHtml()` funksiyaları.
 - Xülasədə "Qalıq" yanındakı göz düyməsi qalıq, gəlir, xərc və bank/nağd məbləğlərini "• • • •" ilə əvəz edir (`shownMoney`, `state.hideBal`, yadda qalmır; hər açılışda görünür).
+
+## Bank kartları və sol menyu (2026-11-04)
+- Bank kartları: meta `bankCards: [{id, name}]` (`normBanks`, həmişə `bank` id-li kart var). Köhnə yazılar (acc yoxdur) `bank` kartındadır. Əməliyyatda `acc` = bank kartının id-si ("cash" nağd). `accList()`, `accOf()`, `accPatch()`, `accLabel()`, `bankChips()` köməkçiləridir. Əməliyyatı olan kart silinmir.
+- Köçürmə: `from`/`to` artıq istənilən hesab id-si ola bilər (çiplərlə seçilir).
+- Xülasənin ən yuxarısında "Ödənişlər", "Bank kartları", "Taksit kartları" kartları. Hesabat kartı menyuya keçib.
+- Sol menyu (`openDrawer`, `#drawerRoot`): profil (şəkil, ad, e-poçt, şifrə, bərpa kodu — `openSettings`), hesabat, nüsxə yüklə/bərpa, tünd rejim, silkələmə, bizə müraciət və ən aşağıda hesabdan çıxış. Menyu düyməsi header-də sol tərəfdədir (`#settingsBtn`).
