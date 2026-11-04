@@ -35,4 +35,4 @@ Dəyişiklikdən sonra Playwright ilə iPhone ölçüsündə (390px) açıb əsa
 
 ## Limit xəbərdarlığı
 - Plan limitləri (başlıq və maddə, aylıq) Xülasədə "Limit xəbərdarlığı" kartında göstərilir: limitin 80%-i və ya üzərində olanlar, aşılanlar qırmızı. `limitAlerts()` / `limitAlertsHtml()` funksiyaları.
-- Xülasədə "Qalıq" yanındakı göz düyməsi qalığı və bank/nağd məbləğlərini bulanıq edir (`state.hideBal`, yadda qalmır; hər açılışda görünür).
+- Xülasədə "Qalıq" yanındakı göz düyməsi qalıq, gəlir, xərc və bank/nağd məbləğlərini "• • • •" ilə əvəz edir (`shownMoney`, `state.hideBal`, yadda qalmır; hər açılışda görünür).

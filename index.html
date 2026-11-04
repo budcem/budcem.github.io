@@ -185,7 +185,6 @@ textarea.input { resize: vertical; min-height: 120px; font: inherit; font-size: 
 .label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
 
 .balance .big { font-family: var(--font-display); font-size: 36px; font-weight: 700; letter-spacing: -.02em; margin: 2px 0 14px; }
-.blur { filter: blur(7px); user-select: none; -webkit-user-select: none; }
 .eye-btn { display: inline-grid; place-items: center; vertical-align: middle; margin-left: 6px; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; }
 .eye-btn svg { width: 18px; height: 18px; }
 .balance .big.neg { color: var(--expense); }
@@ -492,6 +491,8 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
   const lastRate = c => { try { const v = parseFloat(localStorage.getItem("budcem.rate." + c)); return v > 0 ? v : DEFAULT_RATE[c]; } catch { return DEFAULT_RATE[c]; } };
   const setLastRate = (c, v) => { try { localStorage.setItem("budcem.rate." + c, String(v)); } catch {} };
   const effAmt = f => (curOf(f) ? parseNum(f.orig) * parseNum(f.rate) : parseNum(f.amount));
+  // Göz düyməsi bağlı olanda məbləğ yerinə nöqtələr göstərilir
+  const shownMoney = v => (state.hideBal ? "• • • •" : money(v));
   const pad = n => String(n).padStart(2, "0");
   const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const parseYmd = s => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
@@ -1732,13 +1733,13 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
     return `
       <section class="card balance">
         <p class="label">Qalıq<button class="eye-btn" data-hidebal aria-pressed="${!!state.hideBal}" aria-label="${state.hideBal ? "Rəqəmləri göstər" : "Rəqəmləri gizlət"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${state.hideBal ? `<path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6A17 17 0 0 0 2 12s3.5 7 10 7a9.8 9.8 0 0 0 5.4-1.6"/>` : `<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>`}</svg></button></p>
-        <div class="big num ${bal < 0 ? "neg" : ""} ${state.hideBal ? "blur" : ""}">${money(bal)}</div>
+        <div class="big num ${bal < 0 ? "neg" : ""}">${shownMoney(bal)}</div>
         <div class="split">
-          <div class="in"><small>Gəlir</small><b class="num">${money(inc)}</b></div>
-          <div class="out"><small>Xərc</small><b class="num">${money(out)}</b></div>
+          <div class="in"><small>Gəlir</small><b class="num">${shownMoney(inc)}</b></div>
+          <div class="out"><small>Xərc</small><b class="num">${shownMoney(out)}</b></div>
         </div>
         <div class="accs">
-          ${ACCS.map(a => { const v = accBalance(a.id, ymd(new Date(state.month.getFullYear(), state.month.getMonth() + 1, 0))); return `<div class="acc"><small>${a.name}</small><b class="num ${v < 0 ? "neg" : ""} ${state.hideBal ? "blur" : ""}">${money(v)}</b></div>`; }).join("")}
+          ${ACCS.map(a => { const v = accBalance(a.id, ymd(new Date(state.month.getFullYear(), state.month.getMonth() + 1, 0))); return `<div class="acc"><small>${a.name}</small><b class="num ${v < 0 ? "neg" : ""}">${shownMoney(v)}</b></div>`; }).join("")}
           <button class="xfer" data-transfer aria-label="Hesablar arası köçürmə">⇄ Köçürmə</button>
         </div>
       </section>
