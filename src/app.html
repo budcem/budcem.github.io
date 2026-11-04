@@ -460,6 +460,16 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
     int = int.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
     return (neg ? "−" : "") + int + (dec === "00" ? "" : "," + dec) + " ₼";
   };
+  // Valyuta: məbləğ həmişə manatla (amount) saxlanır; xarici valyuta yalnız orig və kurs ilə qeyd olunur
+  const CURRENCIES = [{ code: "AZN", label: "₼ AZN" }, { code: "USD", label: "$ USD" }, { code: "EUR", label: "€ EUR" }];
+  const CUR_SYM = { USD: "$", EUR: "€" };
+  const DEFAULT_RATE = { USD: 1.7, EUR: 2 };
+  const parseNum = s => parseFloat(String(s ?? "").replace(/\s/g, "").replace(",", ".")) || 0;
+  const plainNum = v => (Math.round(v * 100) / 100).toFixed(2).replace(/\.00$/, "").replace(".", ",").replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  const curOf = f => (f.cur && f.cur !== "AZN" ? f.cur : null);
+  const lastRate = c => { try { const v = parseFloat(localStorage.getItem("budcem.rate." + c)); return v > 0 ? v : DEFAULT_RATE[c]; } catch { return DEFAULT_RATE[c]; } };
+  const setLastRate = (c, v) => { try { localStorage.setItem("budcem.rate." + c, String(v)); } catch {} };
+  const effAmt = f => (curOf(f) ? parseNum(f.orig) * parseNum(f.rate) : parseNum(f.amount));
   const pad = n => String(n).padStart(2, "0");
   const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const parseYmd = s => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
@@ -1899,7 +1909,8 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
     </button>`;
     const c = catById(r.catId);
     const name = c?.name || "Kateqoriyasız";
-    const sub = [r.sub, r.kind === "income" ? "Gəlir" : TYPE[r.type]?.title, isCardExp(r) ? cardName(r) : r.acc === "cash" ? "Nağd" : "", r.note].filter(Boolean).map(esc).join(" · ");
+    const fx = r.cur && r.cur !== "AZN" ? `${plainNum(Number(r.orig))} ${CUR_SYM[r.cur] || r.cur} (kurs ${plainNum(Number(r.rate))})` : "";
+    const sub = [r.sub, r.kind === "income" ? "Gəlir" : TYPE[r.type]?.title, isCardExp(r) ? cardName(r) : r.acc === "cash" ? "Nağd" : "", fx, r.note].filter(Boolean).map(esc).join(" · ");
     return `<button class="row" data-edit="${esc(r.id)}">
       ${badge(name)}
       <span class="t"><div>${esc(name)}</div><div class="sub">${sub}</div></span>
@@ -2184,6 +2195,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
   function openRecordSheet(record, preset, onSaved, onDone) {
     const editing = !!record;
     const f = record ? { ...record } : { id: uid(), kind: "expense", type: "need", catId: null, amount: "", date: ymd(new Date()), note: "", created: Date.now(), ...(preset || {}) };
+    if (record && record.cur && record.cur !== "AZN") { f.orig = String(record.orig ?? "").replace(".", ","); f.rate = String(record.rate ?? "").replace(".", ","); }
     if (!editing && !preset?.date && monthKey(state.month) !== monthKey(new Date())) {
       // Başqa ay açıqdırsa, həmin ayın 1-i ilə başla
       f.date = ymd(new Date(state.month.getFullYear(), state.month.getMonth(), 1));
@@ -2192,7 +2204,8 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
 
     const draw = () => {
       const cats = state.categories.filter(c => c.kind === f.kind);
-      const amt = parseFloat(String(f.amount).replace(",", "."));
+      const cur = curOf(f);
+      const amt = effAmt(f);
       const sel = cats.find(c => c.id === f.catId);
       const ok = amt > 0 && sel && f.date;
       sheet(`
@@ -2206,7 +2219,11 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
             <button data-kind="expense" aria-pressed="${f.kind === "expense"}">Xərc</button>
             <button data-kind="income" aria-pressed="${f.kind === "income"}">Gəlir</button>
           </div>
-          <label class="amount-wrap"><input id="f-amount" class="num" inputmode="decimal" placeholder="0" value="${esc(f.amount)}" autocomplete="off"><em>₼</em></label>
+          <div class="chips">${CURRENCIES.map(c => `
+            <button class="chip" data-cur="${c.code}" aria-pressed="${(cur || "AZN") === c.code}">${c.label}</button>`).join("")}</div>
+          <label class="amount-wrap"><input id="f-amount" class="num" inputmode="decimal" placeholder="0" value="${esc(cur ? (f.orig ?? "") : (f.amount ?? ""))}" autocomplete="off"><em>${cur ? CUR_SYM[cur] : "₼"}</em></label>
+          ${cur ? `<div class="field"><span>Kurs (1 ${cur} = ? ₼)</span><input id="f-rate" class="input num" inputmode="decimal" value="${esc(f.rate ?? String(lastRate(cur)).replace(".", ","))}"></div>
+          <p id="f-prev" class="note" style="text-align:left;margin:-4px 0 8px">Manatla: ${amt > 0 ? money(amt) : "—"}</p>` : ""}
           ${f.kind === "expense" ? `<div class="field"><span>Başlıq</span><div class="types">${TYPES.map(t => `
             <button class="type" style="--c:${t.color}" data-type="${t.id}" aria-pressed="${f.type === t.id}"><span class="dot" style="background:${t.color}"></span>${t.title}</button>`).join("")}</div></div>
           <div class="field"><span>Necə ödənildi</span><div class="seg three">
@@ -2233,7 +2250,14 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
           <label class="field"><span>Qeyd</span><input id="f-note" class="input" placeholder="İstəyə bağlı" value="${esc(f.note)}" maxlength="120"></label>
         </div>`);
       const a = $("#f-amount");
-      a.addEventListener("input", () => { f.amount = a.value; const v = parseFloat(a.value.replace(",", ".")); $("[data-save]").disabled = !(v > 0 && f.catId && f.date); });
+      const refresh = () => {
+        const v = effAmt(f);
+        $("[data-save]").disabled = !(v > 0 && f.catId && f.date);
+        const p = $("#f-prev"); if (p) p.textContent = "Manatla: " + (v > 0 ? money(v) : "—");
+      };
+      a.addEventListener("input", () => { if (curOf(f)) f.orig = a.value; else f.amount = a.value; refresh(); });
+      const rateInp = $("#f-rate");
+      if (rateInp) rateInp.addEventListener("input", () => { f.rate = rateInp.value; refresh(); });
       $("#f-date").addEventListener("change", e => { f.date = e.target.value; });
       $("#f-note").addEventListener("input", e => { f.note = e.target.value; });
       if (first && !editing && !f.amount) setTimeout(() => a.focus(), 50);
@@ -2250,10 +2274,28 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
       else if (t.dataset.paycard) { f.cardId = t.dataset.paycard; draw(); }
       else if (t.dataset.sub) { f.sub = f.sub === t.dataset.sub ? undefined : t.dataset.sub; draw(); }
       else if (t.dataset.pick) { f.catId = t.dataset.pick; catOpen = false; draw(); }
+      else if (t.dataset.cur) {
+        const c = t.dataset.cur;
+        if (c === "AZN") {
+          // Manata qayıdanda hesablanmış məbləğ saxlanır
+          const v = effAmt(f);
+          f.amount = v > 0 ? plainNum(v).replace(" ", "") : "";
+          f.cur = "AZN"; delete f.orig; delete f.rate;
+        } else {
+          f.cur = c; f.orig = f.orig ?? ""; f.rate = f.rate ?? String(lastRate(c)).replace(".", ",");
+        }
+        draw();
+      }
       else if (t.hasAttribute("data-save")) {
-        const amount = Math.round(parseFloat(String(f.amount).replace(",", ".")) * 100) / 100;
+        const cur = curOf(f);
+        const amount = Math.round(effAmt(f) * 100) / 100;
         if (!(amount > 0) || !f.catId || !f.date) return;
         const rec = { id: f.id, kind: f.kind, amount, catId: f.catId, date: f.date, note: (f.note || "").trim(), created: f.created || Date.now() };
+        if (cur) {
+          const rate = Math.round(parseNum(f.rate) * 10000) / 10000;
+          rec.cur = cur; rec.orig = Math.round(parseNum(f.orig) * 100) / 100; rec.rate = rate;
+          setLastRate(cur, rate);
+        }
         if (f.kind === "expense") rec.type = f.type;
         if (f.kind === "expense" && f.sub && isUtil(catById(f.catId))) rec.sub = f.sub;
         if (!(f.kind === "expense" && f.pay === "card") && f.acc === "cash") rec.acc = "cash";

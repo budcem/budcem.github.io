@@ -26,3 +26,9 @@ Xərclər 4 başlıqdan birinə aiddir (Ehtiyac, İstək, İnvestisiya, Kredit) 
 
 ## Yoxlama
 Dəyişiklikdən sonra Playwright ilə iPhone ölçüsündə (390px) açıb əsas axınları yoxlayın: xərc əlavə etmək, xülasə, plan, təqvim. Səhifə üfüqi sürüşməməlidir.
+
+## Valyuta (USD / EUR)
+- Xərc və gəlir formasında valyuta seçimi var (₼ AZN, $ USD, € EUR). `amount` həmişə manatla saxlanılır, hesabatlar dəyişməyib.
+- Xarici valyuta yazılarında əlavə sahələr: `cur` ("USD"|"EUR"), `orig` (valyutada məbləğ), `rate` (1 valyuta = neçə ₼). Sətirdə "10 $ (kurs 1,75)" görünür.
+- Kurs standart: USD 1,70, EUR 2,00 (təxmini). Son istifadə olunan kurs `budcem.rate.<KOD>` localStorage-da qalır. Kurs saytda avtomatik yenilənmir.
+- Kart ödənişi, köçürmə və xatırladıcılar hələ yalnız manatla işləyir.
