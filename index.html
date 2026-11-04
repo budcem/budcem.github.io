@@ -106,7 +106,9 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .gear b { font-size: 13px; color: var(--accent); }
 .crop { width: 260px; height: 260px; border-radius: 50%; overflow: hidden; box-shadow: 0 0 0 3px var(--accent); touch-action: none; }
 .crop canvas { width: 260px; height: 260px; display: block; cursor: grab; touch-action: none; }
-.accs { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 8px; margin-top: 10px; align-items: stretch; }
+.accs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; align-items: stretch; }
+.accs .acc small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.accs .acc b { display: block; font-size: clamp(12px, 3.7vw, 15px); overflow: hidden; text-overflow: ellipsis; }
 .accs .xfer { grid-column: 1 / -1; }
 .acc { background: var(--surface-2); border-radius: 12px; padding: 8px 10px; min-width: 0; }
 .acc small { display: block; font-size: 12px; color: var(--muted); }
@@ -1275,12 +1277,15 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
   const cardIdOf = r => r.cardId || DEFAULT_CARD;
   const cardById = id => state.cards.find(c => c.id === id);
   const cardName = r => cardById(cardIdOf(r))?.name || "Taksit kartı";
-  const cardRecs = id => state.records.filter(r => (isCardExp(r) || r.kind === "cardpay") && cardIdOf(r) === id);
+  // Taksit kartından başqa hesaba köçürmə: kind "transfer", from "card:<id>" (kartın borcunu artırır)
+  const isCardOut = r => r.kind === "transfer" && String(r.from || "").startsWith("card:");
+  const isCardRec = (r, id) => ((isCardExp(r) || r.kind === "cardpay") && cardIdOf(r) === id) || (isCardOut(r) && r.from === "card:" + id);
+  const cardRecs = id => state.records.filter(r => isCardRec(r, id));
   // Borc = tətbiqə qədərki ilkin borc + kartla xərclər − karta ödənişlər
   function cardDebt(id) {
     const c = cardById(id); if (!c) return 0;
     const recs = cardRecs(id);
-    return c.opening + sum(recs.filter(isCardExp)) - sum(recs.filter(r => r.kind === "cardpay"));
+    return c.opening + sum(recs.filter(isCardExp)) + sum(recs.filter(isCardOut)) - sum(recs.filter(r => r.kind === "cardpay"));
   }
   const totalCardDebt = () => state.cards.reduce((a, c) => a + cardDebt(c.id), 0);
   const parseMoney = v => parseFloat(String(v ?? "").replace(/\s/g, "").replace(",", "."));
@@ -1318,7 +1323,7 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
   function openCardDetail(id) {
     const c = cardById(id); if (!c) return openCardSheet();
     const m = state.month.getMonth();
-    const list = monthRecords().filter(r => (isCardExp(r) || r.kind === "cardpay") && cardIdOf(r) === id)
+    const list = monthRecords().filter(r => isCardRec(r, id))
       .sort((a, b) => b.date.localeCompare(a.date) || (b.created || 0) - (a.created || 0));
     const debt = cardDebt(id);
     sheet(`
@@ -1350,7 +1355,7 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
       else if (t.hasAttribute("data-newcardpay")) openCardPaySheet(null, id);
       else if (t.dataset.edit) {
         const r = state.records.find(x => x.id === t.dataset.edit);
-        if (r) r.kind === "cardpay" ? openCardPaySheet(r) : openRecordSheet(r, null, null, () => openCardDetail(id));
+        if (r) r.kind === "cardpay" ? openCardPaySheet(r) : r.kind === "transfer" ? openTransferSheet(r) : openRecordSheet(r, null, null, () => openCardDetail(id));
       }
     };
   }
@@ -1496,7 +1501,8 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
                   : { id: uid(), kind: "transfer", from: "bank", to: "cash", amount: "", date: ymd(new Date()), note: "", created: Date.now() };
     if (!editing && monthKey(state.month) !== monthKey(new Date())) f.date = ymd(new Date(state.month.getFullYear(), state.month.getMonth(), 1));
     let confirmDel = false;
-    const valid = () => parseMoney(f.amount) > 0 && f.date && f.from !== f.to;
+    const isCard = id => String(id || "").startsWith("card:");
+    const valid = () => parseMoney(f.amount) > 0 && f.date && f.from !== f.to && !(isCard(f.from) && isCard(f.to));
     const draw = () => {
       sheet(`
         <div class="sheet-head">
@@ -1505,12 +1511,12 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
           <button class="link save" data-save ${valid() ? "" : "disabled"}>Saxla</button>
         </div>
         <div class="stack">
-          <div class="field"><span>Haradan</span><div class="chips">${accList().map(a => `<button class="chip" data-from="${esc(a.id)}" aria-pressed="${f.from === a.id}">${esc(a.name)}</button>`).join("")}</div></div>
-          <div class="field"><span>Hara</span><div class="chips">${accList().map(a => `<button class="chip" data-to="${esc(a.id)}" aria-pressed="${f.to === a.id}">${esc(a.name)}</button>`).join("")}</div></div>
+          <div class="field"><span>Haradan</span><div class="chips">${xferList().map(a => `<button class="chip" data-from="${esc(a.id)}" aria-pressed="${f.from === a.id}">${esc(a.name)}</button>`).join("")}</div></div>
+          <div class="field"><span>Hara</span><div class="chips">${xferList().filter(a => !(isCard(f.from) && a.card)).map(a => `<button class="chip" data-to="${esc(a.id)}" aria-pressed="${f.to === a.id}">${esc(a.name)}</button>`).join("")}</div></div>
           <label class="amount-wrap"><input id="p-amount" class="num" inputmode="decimal" placeholder="0" value="${esc(f.amount)}" autocomplete="off"><em>₼</em></label>
           <label class="field"><span>Tarix</span><input id="p-date" class="input" type="date" value="${esc(f.date)}"></label>
           <label class="field"><span>Qeyd</span><input id="p-note" class="input" placeholder="İstəyə bağlı, məs. bankomat" value="${esc(f.note)}" maxlength="120"></label>
-          <p class="note">Köçürmə xərc və ya gəlir sayılmır: ümumi qalıq dəyişmir, yalnız pul ${esc(accName(f.from))} hesabından ${esc(accName(f.to))} hesabına keçir.</p>
+          <p class="note">${isCard(f.to) ? `Bu, ${esc(accName(f.to))} kartına ödənişdir: xərc sayılmır, kartın borcunu azaldır.` : isCard(f.from) ? `Pul ${esc(accName(f.from))} kartından ${esc(accName(f.to))} hesabına keçir: kartın borcu artır, xərc sayılmır.` : `Köçürmə xərc və ya gəlir sayılmır: ümumi qalıq dəyişmir, yalnız pul ${esc(accName(f.from))} hesabından ${esc(accName(f.to))} hesabına keçir.`}</p>
           ${editing ? `<button class="danger ${confirmDel ? "confirm" : ""}" data-del>${confirmDel ? "Silməyi təsdiqləyin" : "Köçürməni sil"}</button>` : ""}
         </div>`);
       $("#p-amount").addEventListener("input", e => { f.amount = e.target.value; $("[data-save]").disabled = !valid(); });
@@ -1519,8 +1525,8 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
     };
     sheetHandler = e => {
       const t = e.target.closest("button"); if (!t) return;
-      if (t.dataset.from) { f.from = t.dataset.from; if (f.to === f.from) f.to = accList().find(a => a.id !== f.from).id; draw(); }
-      else if (t.dataset.to) { f.to = t.dataset.to; if (f.from === f.to) f.from = accList().find(a => a.id !== f.to).id; draw(); }
+      if (t.dataset.from) { f.from = t.dataset.from; if (f.to === f.from || (isCard(f.from) && isCard(f.to))) f.to = accList().find(a => a.id !== f.from).id; draw(); }
+      else if (t.dataset.to) { f.to = t.dataset.to; if (f.from === f.to || (isCard(f.from) && isCard(f.to))) f.from = accList().find(a => a.id !== f.to).id; draw(); }
       else if (t.hasAttribute("data-del")) {
         if (!confirmDel) { confirmDel = true; draw(); }
         else { store.deleteRecord(f.id); toast("Silindi"); closeSheet(); }
@@ -1528,7 +1534,10 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
       else if (t.hasAttribute("data-save")) {
         if (!valid()) return;
         const amount = Math.round(parseMoney(f.amount) * 100) / 100;
-        store.saveRecord({ id: f.id, kind: "transfer", from: f.from, to: f.to, amount, date: f.date, note: (f.note || "").trim(), created: f.created || Date.now() });
+        const base = { id: f.id, amount, date: f.date, note: (f.note || "").trim(), created: f.created || Date.now() };
+        // Taksit kartına köçürmə = karta ödəniş (cardpay), digərləri adi köçürmədir
+        if (isCard(f.to)) store.saveRecord({ ...base, kind: "cardpay", cardId: f.to.slice(5), ...accPatch(f.from) });
+        else store.saveRecord({ ...base, kind: "transfer", from: f.from, to: f.to });
         closeSheet(); toast(editing ? "Yeniləndi" : "Köçürmə qeyd edildi");
       }
     };
@@ -1790,12 +1799,15 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
   // Bir qrupun təsiri: gəlir − balansdan çıxan xərc − karta ödəniş (kartla xərc balansdan çıxmır)
   const netOf = list => sum(list.filter(r => r.kind === "income"))
     - sum(list.filter(r => r.kind === "expense" && !isCardExp(r)))
-    - sum(list.filter(r => r.kind === "cardpay"));
+    - sum(list.filter(r => r.kind === "cardpay"))
+    + sum(list.filter(isCardOut));
   // Hesablar: "bank" (bank kartı; köhnə yazıların hamısı buradadır) və "cash" (nağd).
   // Köçürmə (kind: "transfer", from, to) xərc və ya gəlir deyil, yalnız pulu bir hesabdan digərinə keçirir.
   // Bank kartları çoxdur (state.bankCards); acc = bank kartının id-si, "cash" nağddır, boş = "bank"
   const accList = () => [...state.bankCards.map(b => ({ id: b.id, name: b.name })), { id: "cash", name: "Nağd" }];
-  const accName = id => accList().find(a => a.id === id)?.name || "Bank kartı";
+  const accName = id => String(id || "").startsWith("card:") ? (cardById(id.slice(5))?.name || "Taksit kartı") : (accList().find(a => a.id === id)?.name || "Bank kartı");
+  // Köçürmə üçün hesablar: bank kartları, nağd və taksit kartları ("card:<id>")
+  const xferList = () => [...accList(), ...state.cards.map(c => ({ id: "card:" + c.id, name: c.name, card: true }))];
   const accOf = r => r.acc === "cash" ? "cash" : (r.acc && r.acc !== "bank" ? r.acc : "bank");
   // Əməliyyatın hesab sahəsi (köhnə "bank" yazılarında heç nə yazılmır)
   const accPatch = acc => (acc === "cash" || (acc && acc !== "bank" && state.bankCards.some(b => b.id === acc)) ? { acc } : {});
@@ -1889,11 +1901,18 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
           <div class="out"><small>Xərc</small><b class="num">${shownMoney(out)}</b></div>
         </div>
         <div class="accs">
-          ${accList().map(a => { const v = accBalance(a.id, ymd(new Date(state.month.getFullYear(), state.month.getMonth() + 1, 0))); const tag = a.id === "cash" ? "div" : "button"; return `<${tag} class="acc" ${a.id === "cash" ? "" : `data-openbank aria-label="${esc(a.name)}: bank kartları"`}><small>${esc(a.name)}</small><b class="num ${v < 0 ? "neg" : ""}">${shownMoney(v)}</b></${tag}>`; }).join("")}
+          ${(() => {
+            const end = ymd(new Date(state.month.getFullYear(), state.month.getMonth() + 1, 0));
+            const bank = state.bankCards.reduce((t, b) => t + accBalance(b.id, end), 0);
+            const cash = accBalance("cash", end);
+            const debt = totalCardDebt();
+            return `<button class="acc" data-openbank><small>Bank kartları</small><b class="num ${bank < 0 ? "neg" : ""}">${shownMoney(bank)}</b></button>
+          <div class="acc"><small>Nağd</small><b class="num ${cash < 0 ? "neg" : ""}">${shownMoney(cash)}</b></div>
+          <button class="acc" data-opencard><small>Taksit kartları</small><b class="num ${debt > 0 ? "neg" : ""}">${shownMoney(debt)}</b></button>`;
+          })()}
           <button class="xfer" data-transfer aria-label="Hesablar arası köçürmə">⇄ Köçürmə</button>
         </div>
       </section>
-      ${toolTiles()}
       ${localMergeNag()}
       <section class="card">
         <div class="seg three" role="group" aria-label="Hesabat dövrü">
