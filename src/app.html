@@ -2557,7 +2557,9 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
   // Silkələyəndə geri al (iPhone-dakı kimi). iOS-da icazə üçün bir düymə basmaq lazımdır.
   const SHAKE_KEY = "budcem.shakeUndo";
   let shakeOn = false, lastShake = 0;
-  const shakeLabel = () => `Silkələyəndə geri al: ${shakeOn ? "Açıq" : "Bağlı"}`;
+  // Ayar yadda qalır: "Açıq" yazılıbsa, iOS-da hər açılışda bir dəfə düyməyə basmaq lazımdır (Apple icazəni tətbiqə bir dəfəlik verir)
+  const shakeWanted = () => { try { return localStorage.getItem(SHAKE_KEY) === "1"; } catch (e) { return false; } };
+  const shakeLabel = () => `Silkələyəndə geri al: ${shakeOn ? "Açıq" : shakeWanted() ? "Açıq (aktiv etmək üçün basın)" : "Bağlı"}`;
   function onMotion(e) {
     const a = e.accelerationIncludingGravity; if (!a) return;
     const m = Math.sqrt((a.x || 0) ** 2 + (a.y || 0) ** 2 + (a.z || 0) ** 2);
