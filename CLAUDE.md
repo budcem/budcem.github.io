@@ -40,5 +40,7 @@ Dəyişiklikdən sonra Playwright ilə iPhone ölçüsündə (390px) açıb əsa
 ## Bank kartları və sol menyu (2026-11-04)
 - Bank kartları: meta `bankCards: [{id, name}]` (`normBanks`, həmişə `bank` id-li kart var). Köhnə yazılar (acc yoxdur) `bank` kartındadır. Əməliyyatda `acc` = bank kartının id-si ("cash" nağd). `accList()`, `accOf()`, `accPatch()`, `accLabel()`, `bankChips()` köməkçiləridir. Əməliyyatı olan kart silinmir.
 - Köçürmə: `from`/`to` artıq istənilən hesab id-si ola bilər (çiplərlə seçilir).
-- Xülasənin ən yuxarısında "Ödənişlər", "Bank kartları", "Taksit kartları" kartları. Hesabat kartı menyuya keçib.
+- Bank kartında `opening` (başlanğıc balans, standart 0 — köhnə qalıqlar dəyişmir). "Mövcud balans" yazanda fərq `opening`-ə əlavə olunur (taksit kartı kimi). `accBalance` və `carryIn` opening-i nəzərə alır.
+- Xülasədə Qalıq kartının altında "Bank kartları" və "Taksit kartları". Qalıqdakı bank kartı adına basanda Bank kartları bölməsi açılır. Hesabat menyudadır.
+- Bildirişlər: sağ üstdəki zəng (`#noteBtn`, `notes()`, `openNotes()`): bu gün/gecikmiş ödənişlər, müraciətə cavab, yenilik (`NEWS`), plan limitləri, ehtiyat nüsxə. Oxunmamışların sayı qırmızı nişanda; menyu açılanda oxundu sayılır (`budcem.seenNotes`). Ödənişlər bölməsi zəng menyusundakı "Ödənişlər ›" ilə açılır. Xülasədəki yenilik, nüsxə və limit kartları zəngə keçib.
 - Sol menyu (`openDrawer`, `#drawerRoot`): profil (şəkil, ad, e-poçt, şifrə, bərpa kodu — `openSettings`), hesabat, nüsxə yüklə/bərpa, tünd rejim, silkələmə, bizə müraciət və ən aşağıda hesabdan çıxış. Menyu düyməsi header-də sol tərəfdədir (`#settingsBtn`).

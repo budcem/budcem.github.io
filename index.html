@@ -363,6 +363,29 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
 .limit-alerts .la.over span:last-child { color: var(--expense); font-weight: 600; }
 .accs .xfer { padding: 10px; min-height: 40px; }
 
+/* Sağ üst: ay seçimi və bildiriş zəngi */
+.top-right { display: flex; align-items: center; gap: 6px; flex: none; }
+#noteBtn { position: relative; overflow: visible; }
+.nbadge { position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #e5352b; color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; box-shadow: 0 0 0 2px var(--bg); }
+.nbadge[hidden] { display: none; }
+@media (max-width: 420px) { .topbar h1 { font-size: 19px; } .month .mlabel { min-width: 62px; font-size: 14px; padding-inline: 2px; } }
+@media (max-width: 370px) { .topbar h1 { font-size: 17px; } .month .icon-btn { width: 28px; } .month .mlabel { min-width: 56px; } .top-right { gap: 4px; } }
+button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+#noteRoot { position: fixed; inset: 0; z-index: 70; display: none; }
+#noteRoot.open { display: block; }
+.nt-back { position: absolute; inset: 0; }
+.nt-pop { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 58px); right: 12px; width: min(340px, calc(100vw - 24px)); max-height: 70dvh; overflow-y: auto; background: var(--surface); border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.18), 0 0 0 1px var(--line); padding: 8px; }
+.nt-head { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px 8px; }
+.nt-head b { font-size: 16px; }
+.nt-item { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 10px 8px; border: 0; border-top: 1px solid var(--line); background: transparent; color: inherit; font: inherit; text-align: left; border-radius: 0; }
+.nt-item.new { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.nt-ic { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); color: var(--accent); font-weight: 700; font-size: 14px; }
+.nt-item.pay .nt-ic, .nt-item.plan .nt-ic { color: var(--expense); }
+.nt-t { min-width: 0; flex: 1; }
+.nt-t b { display: block; font-size: 15px; }
+.nt-t small { display: block; color: var(--muted); font-size: 13px; line-height: 1.35; margin-top: 2px; }
+.nt-empty { margin: 0; padding: 16px 8px; color: var(--muted); text-align: center; font-size: 14px; border-top: 1px solid var(--line); }
+
 /* Sol menyu (drawer) */
 #drawerRoot { position: fixed; inset: 0; z-index: 80; visibility: hidden; }
 #drawerRoot.open { visibility: visible; }
@@ -438,10 +461,13 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
       <button class="gear" id="settingsBtn" aria-label="Menyu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
       <h1 id="title">Xülasə</h1>
     </div>
+    <div class="top-right">
     <div class="month" id="monthBox">
-      <button class="icon-btn" id="prevM" aria-label="Əvvəlki ay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
-      <button id="monthLabel" class="mlabel num" aria-label="Ay seçin"></button>
-      <button class="icon-btn" id="nextM" aria-label="Növbəti ay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+        <button class="icon-btn" id="prevM" aria-label="Əvvəlki ay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+        <button id="monthLabel" class="mlabel num" aria-label="Ay seçin"></button>
+        <button class="icon-btn" id="nextM" aria-label="Növbəti ay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+      </div>
+      <button class="gear" id="noteBtn" aria-label="Bildirişlər"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span class="nbadge" hidden></span></button>
     </div>
   </header>
   <main id="view" class="stack"></main>
@@ -552,7 +578,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
     done: {},
     plan: { income: 0, types: {}, cats: {} },
     cards: [],
-    bankCards: [{ id: "bank", name: "Bank kartı" }],
+    bankCards: [{ id: "bank", name: "Bank kartı", opening: 0 }],
     profile: {},
     // Xülasədə xərc bölgüsünün dövrü: "month" (seçilmiş ay), "all", "range"
     sumPeriod: "month", sumFrom: "", sumTo: "",
@@ -1171,8 +1197,8 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
   // Kartlar: köhnə məlumatda yalnız cardOpening var idi, o ilk karta ("card1") köçürülür
   // Bank kartları: köhnə yazılar "bank" id-li karta aiddir, buna görə bu kart həmişə olmalıdır
   function normBanks(banks) {
-    const list = Array.isArray(banks) ? banks.filter(b => b && b.id).map(b => ({ id: String(b.id), name: String(b.name || "Bank kartı") })) : [];
-    if (!list.some(b => b.id === "bank")) list.unshift({ id: "bank", name: "Bank kartı" });
+    const list = Array.isArray(banks) ? banks.filter(b => b && b.id).map(b => ({ id: String(b.id), name: String(b.name || "Bank kartı"), opening: Number(b.opening) || 0 })) : [];
+    if (!list.some(b => b.id === "bank")) list.unshift({ id: "bank", name: "Bank kartı", opening: 0 });
     return list;
   }
   function normCards(cards, cardOpening) {
@@ -1186,6 +1212,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
     $("#monthLabel").textContent = `${MON_SHORT[state.month.getMonth()]} ${state.month.getFullYear()}`;
     $("#monthLabel").setAttribute("aria-label", `${MONTHS[state.month.getMonth()]} ${state.month.getFullYear()}, ay seçin`);
     $("#title").textContent = { summary: "Xülasə", records: "Əməliyyatlar", plan: "Plan", cats: "Kateqoriyalar" }[state.tab];
+    try { paintNotes(); } catch (e) {}
     $("#monthBox").hidden = state.tab === "cats";
     paintAvatar();
     document.querySelectorAll(".tabbar button").forEach(b => {
@@ -1225,21 +1252,16 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
   }
   // Xülasədə iki kiçik düymə: xatırladıcılar və hesabat
   function toolTiles() {
-    const now = new Date();
-    const due = occurrences(now.getFullYear(), now.getMonth()).filter(o => o.status === "today" || o.status === "late");
-    const sub = due.length ? `${due.length} ödəniş gözləyir` : state.reminders.length ? "Gözləyən ödəniş yoxdur" : "Əlavə edin";
+    const END = "9999-12-31";
+    const bankTotal = state.bankCards.reduce((a, b) => a + accBalance(b.id, END), 0);
     return `<div class="tiles">
-      <button class="tile ${due.length ? "warn" : ""}" data-openrem>
-        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></span>
-        <div><b>Ödənişlər</b><span class="s">${sub}</span></div>
-      </button>
       <button class="tile" data-openbank>
         <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19"/></svg></span>
-        <div><b>Bank kartları</b><span class="s">${state.bankCards.length > 1 ? `${state.bankCards.length} kart` : "Yeni kart əlavə edin"}</span></div>
+        <div><b>Bank kartları</b><span class="s">${state.bankCards.length > 1 ? `${state.bankCards.length} kart · ` : ""}${shownMoney(bankTotal)}</span></div>
       </button>
-      <button class="tile wide" data-opencard>
+      <button class="tile" data-opencard>
         <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19M6.5 15h4"/></svg></span>
-        <div><b>Taksit kartları</b><span class="s">${state.cards.length > 1 ? `${state.cards.length} kart · ` : ""}Borc: ${money(totalCardDebt())}</span></div>
+        <div><b>Taksit kartları</b><span class="s">${state.cards.length > 1 ? `${state.cards.length} kart · ` : ""}Borc: ${shownMoney(totalCardDebt())}</span></div>
       </button>
     </div>`;
   }
@@ -1422,6 +1444,8 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
     const b = id ? state.bankCards.find(x => x.id === id) : null;
     if (id && !b) return openBankSheet();
     let name = b?.name || "";
+    const curBal = b ? Math.round(accBalance(b.id, "9999-12-31") * 100) / 100 : 0;
+    let bal = b ? String(curBal).replace(".", ",") : "";
     let confirmDel = false;
     const used = b ? bankUsed(b.id) : false;
     const draw = () => {
@@ -1433,11 +1457,14 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
         </div>
         <div class="stack">
           <label class="field"><span>Kartın adı</span><input id="bk-name" class="input" maxlength="30" placeholder="Məsələn: Kapital Bank" value="${esc(name)}"></label>
+          <label class="field"><span>Mövcud balans (₼)</span><input id="bk-bal" class="input num" inputmode="decimal" placeholder="0" value="${esc(bal)}"></label>
+          <p class="note" style="text-align:left;margin:-4px 0 0">Kartda hazırda nə qədər pul olduğunu yazın. Bundan sonra yazdığınız gəlir və xərclər bu balansı dəyişəcək.</p>
           ${b && b.id !== "bank" && !used ? `<button class="danger ${confirmDel ? "confirm" : ""}" data-delbank>${confirmDel ? "Silməyi təsdiqləyin" : "Kartı sil"}</button>` : ""}
           ${b && used ? `<p class="note" style="text-align:left">Bu karta əməliyyat yazılıb, ona görə silmək olmur.</p>` : ""}
           ${b && b.id === "bank" ? `<p class="note" style="text-align:left">Əvvəlki bütün əməliyyatlar bu kartdadır, ona görə bu kart silinmir.</p>` : ""}
         </div>`);
       $("#bk-name").addEventListener("input", e => { name = e.target.value; });
+      $("#bk-bal").addEventListener("input", e => { bal = e.target.value; });
     };
     sheetHandler = e => {
       const t = e.target.closest("button"); if (!t) return;
@@ -1445,8 +1472,11 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
       if (t.hasAttribute("data-savebank")) {
         const clean = name.trim();
         if (!clean) return toast("Kartın adını yazın.");
-        if (b) state.bankCards = state.bankCards.map(x => x.id === b.id ? { ...x, name: clean } : x);
-        else state.bankCards = [...state.bankCards, { id: "bank-" + uid().slice(0, 10), name: clean }];
+        const want = String(bal).trim() ? parseMoney(bal) : (b ? curBal : 0);
+        if (!Number.isFinite(want)) return toast("Balansı düzgün yazın.");
+        const rr = v => Math.round(v * 100) / 100;
+        if (b) state.bankCards = state.bankCards.map(x => x.id === b.id ? { ...x, name: clean, opening: rr((x.opening || 0) + (want - curBal)) } : x);
+        else state.bankCards = [...state.bankCards, { id: "bank-" + uid().slice(0, 10), name: clean, opening: rr(want) }];
         store.saveMeta(); render(); openBankSheet(); toast(b ? "Yadda saxlandı" : "Bank kartı əlavə edildi");
         return;
       }
@@ -1782,11 +1812,14 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
     if (r.kind === "cardpay" || (r.kind === "expense" && !isCardExp(r))) return -a;
     return 0;
   }
-  const accBalance = (acc, until) => state.records.reduce((t, r) => r.date && r.date <= until ? t + accDelta(r, acc) : t, 0);
+  // Bank kartının balansı = yazılmış başlanğıc balans (opening) + əməliyyatlar
+  const bankOpening = acc => state.bankCards.find(b => b.id === acc)?.opening || 0;
+  const accBalance = (acc, until) => state.records.reduce((t, r) => r.date && r.date <= until ? t + accDelta(r, acc) : t, bankOpening(acc));
   // Seçilmiş aydan əvvəlki bütün aylardan qalan qalıq
   function carryIn() {
     const start = ymd(new Date(state.month.getFullYear(), state.month.getMonth(), 1));
-    return netOf(state.records.filter(r => r.date && r.date < start));
+    const openings = state.bankCards.reduce((a, b) => a + (b.opening || 0), 0);
+    return openings + netOf(state.records.filter(r => r.date && r.date < start));
   }
 
   // Plan limitlərinə (başlıq və maddə) cari ay üzrə yaxınlaşma və aşılma xəbərdarlığı
@@ -1848,7 +1881,6 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
     const max = cats[0]?.[1] || 1;
 
     return `
-      ${toolTiles()}
       <section class="card balance">
         <p class="label">Qalıq<button class="eye-btn" data-hidebal aria-pressed="${!!state.hideBal}" aria-label="${state.hideBal ? "Rəqəmləri göstər" : "Rəqəmləri gizlət"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${state.hideBal ? `<path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6A17 17 0 0 0 2 12s3.5 7 10 7a9.8 9.8 0 0 0 5.4-1.6"/>` : `<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>`}</svg></button></p>
         <div class="big num ${bal < 0 ? "neg" : ""}">${shownMoney(bal)}</div>
@@ -1857,14 +1889,12 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
           <div class="out"><small>Xərc</small><b class="num">${shownMoney(out)}</b></div>
         </div>
         <div class="accs">
-          ${accList().map(a => { const v = accBalance(a.id, ymd(new Date(state.month.getFullYear(), state.month.getMonth() + 1, 0))); return `<div class="acc"><small>${a.name}</small><b class="num ${v < 0 ? "neg" : ""}">${shownMoney(v)}</b></div>`; }).join("")}
+          ${accList().map(a => { const v = accBalance(a.id, ymd(new Date(state.month.getFullYear(), state.month.getMonth() + 1, 0))); const tag = a.id === "cash" ? "div" : "button"; return `<${tag} class="acc" ${a.id === "cash" ? "" : `data-openbank aria-label="${esc(a.name)}: bank kartları"`}><small>${esc(a.name)}</small><b class="num ${v < 0 ? "neg" : ""}">${shownMoney(v)}</b></${tag}>`; }).join("")}
           <button class="xfer" data-transfer aria-label="Hesablar arası köçürmə">⇄ Köçürmə</button>
         </div>
       </section>
-      ${newsCard()}
+      ${toolTiles()}
       ${localMergeNag()}
-      ${backupNag()}
-      ${limitAlertsHtml()}
       <section class="card">
         <div class="seg three" role="group" aria-label="Hesabat dövrü">
           <button data-period="month" aria-pressed="${period === "month"}">${MONTHS[m]}</button>
@@ -2192,6 +2222,92 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
   const avatarInner = big => state.profile.photo ? `<img src="${esc(state.profile.photo)}" alt="">` : initials() ? `<b>${esc(initials())}</b>` : big ? PERSON_SVG : GEAR_SVG;
   // Yuxarıdakı ayarlar düyməsi: profil şəkli, yoxdursa adın baş hərfləri, o da yoxdursa dişli
   // Yuxarıdakı düymə: profil şəkli varsa şəkil, yoxdursa dişli ikonu
+  // ---------- Bildirişlər (sağ üstdəki zəng) ----------
+  // Bütün bildirişlər burada: bu gün/gecikmiş ödənişlər, müraciətə cavab, yenilik, plan limiti, ehtiyat nüsxə.
+  // Hər bildirişin açarı var; zəng menyusu açılanda görünənlər "oxundu" sayılır (budcem.seenNotes).
+  const NOTE_KEY = "budcem.seenNotes";
+  let noteList = [];
+  const getSeenNotes = () => { try { return JSON.parse(localStorage.getItem(NOTE_KEY) || "[]"); } catch (e) { return []; } };
+  function backupDays() {
+    if (store.mode !== "local" || !state.records.length) return undefined;
+    let last = 0;
+    try { last = Number(localStorage.getItem(BACKUP_KEY)) || 0; } catch (e) {}
+    const days = last ? Math.floor((Date.now() - last) / 86400000) : null;
+    return days !== null && days < 7 ? undefined : { days, last };
+  }
+  function notes() {
+    const out = [];
+    const now = new Date();
+    occurrences(now.getFullYear(), now.getMonth()).filter(o => o.status === "today" || o.status === "late").forEach(o => out.push({
+      key: `pay:${o.key}:${o.status}`, kind: "pay", title: o.r.title,
+      text: `${o.status === "today" ? "Bu gün ödənilməlidir" : "Ödəniş gecikib"}${o.r.amount ? " · " + money(o.r.amount) : ""}`
+    }));
+    if (unreadReplies) out.push({ key: `reply:${unreadReplies}`, kind: "fb", title: "Müraciətinizə cavab gəldi", text: "Cavabı oxumaq üçün basın" });
+    let newsSeen = true;
+    try { newsSeen = localStorage.getItem(NEWS_KEY) === NEWS.id; } catch (e) {}
+    if (store.cloud && store.user && !newsSeen) out.push({ key: `news:${NEWS.id}`, kind: "news", title: NEWS.title, text: NEWS.text });
+    limitAlerts().forEach(a => out.push({
+      key: `lim:${monthKey(state.month)}:${a.name}:${a.v > a.p ? "over" : "near"}`, kind: "plan",
+      title: a.v > a.p ? `${a.name}: limit aşılıb` : `${a.name}: limitin ${Math.round(a.v / a.p * 100)}%-i xərclənib`,
+      text: `${MONTHS[state.month.getMonth()]}: ${money(a.v)} / ${money(a.p)}`
+    }));
+    const bk = backupDays();
+    if (bk) out.push({ key: `bak:${bk.last}`, kind: "backup", title: "Ehtiyat nüsxə götürün", text: bk.days === null ? "Hələ heç vaxt nüsxə götürülməyib. Yükləmək üçün basın." : `Son nüsxə ${bk.days} gün əvvəl götürülüb. Yükləmək üçün basın.` });
+    return out;
+  }
+  function paintNotes() {
+    const b = $("#noteBtn"); if (!b) return;
+    let list = [];
+    try { list = notes(); } catch (e) { return; }
+    const seen = getSeenNotes();
+    const n = list.filter(x => !seen.includes(x.key)).length;
+    const badge = b.querySelector(".nbadge");
+    badge.textContent = n > 9 ? "9+" : String(n);
+    badge.hidden = !n;
+    b.setAttribute("aria-label", n ? `Bildirişlər, ${n} yeni` : "Bildirişlər");
+  }
+  function drawNotes(seenBefore) {
+    const root = $("#noteRoot"); if (!root) return;
+    noteList = notes();
+    const ic = { pay: "₼", fb: "✉︎", news: "★", plan: "!", backup: "⤓" };
+    root.innerHTML = `<div class="nt-back" data-ntclose></div>
+      <div class="nt-pop" role="dialog" aria-label="Bildirişlər">
+        <div class="nt-head"><b>Bildirişlər</b><button class="link" data-ntrem>Ödənişlər ›</button></div>
+        ${noteList.length ? noteList.map((x, i) => `
+          <button class="nt-item ${seenBefore.includes(x.key) ? "" : "new"} ${x.kind}" data-nt="${i}">
+            <span class="nt-ic">${ic[x.kind] || "•"}</span>
+            <span class="nt-t"><b>${esc(x.title)}</b><small>${esc(x.text)}</small></span>
+          </button>`).join("") : `<p class="nt-empty">Yeni bildiriş yoxdur</p>`}
+      </div>`;
+  }
+  function openNotes() {
+    let root = $("#noteRoot");
+    if (!root) {
+      document.body.insertAdjacentHTML("beforeend", `<div id="noteRoot"></div>`);
+      root = $("#noteRoot");
+      root.addEventListener("click", notesClick);
+    }
+    if (root.classList.contains("open")) return closeNotes();
+    const seenBefore = getSeenNotes();
+    drawNotes(seenBefore);
+    root.classList.add("open");
+    try { localStorage.setItem(NOTE_KEY, JSON.stringify(noteList.map(x => x.key))); } catch (e) {}
+    paintNotes();
+  }
+  function closeNotes() { $("#noteRoot")?.classList.remove("open"); }
+  function notesClick(e) {
+    if (e.target.closest("[data-ntclose]")) return closeNotes();
+    const b = e.target.closest("button"); if (!b) return;
+    if (b.hasAttribute("data-ntrem")) { closeNotes(); return openRemindersSheet(); }
+    const x = noteList[Number(b.dataset.nt)]; if (!x) return;
+    closeNotes();
+    if (x.kind === "pay") openRemindersSheet();
+    else if (x.kind === "fb") openFeedback();
+    else if (x.kind === "news") seeNews();
+    else if (x.kind === "plan") { state.tab = "plan"; render(); window.scrollTo({ top: 0 }); }
+    else if (x.kind === "backup") { const el = document.createElement("button"); el.setAttribute("data-backup", ""); settingsAction(el); }
+  }
+
   // ---------- Sol menyu ----------
   const MENU_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>`;
   function drawerHtml() {
@@ -2333,12 +2449,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
     unreadReplies = 0; paintBell();
   }
   // Oxunmamış cavab varsa: yuxarıdakı ayarlar düyməsində və "Bizə müraciət edin" düyməsində qırmızı zəng
-  function paintBell() {
-    const b = $("#settingsBtn"); if (!b) return;
-    let dot = b.querySelector(".bell"); if (!dot) { b.insertAdjacentHTML("beforeend", `<span class="bell" hidden>${BELL_SVG}</span>`); dot = b.querySelector(".bell"); }
-    dot.hidden = !unreadReplies;
-    b.setAttribute("aria-label", unreadReplies ? "Menyu, yeni cavab var" : "Menyu");
-  }
+  function paintBell() { paintNotes(); }
   // Tətbiq açılanda bir dəfə: yeni cavab varsa xəbər verilir
   async function checkReplies() {
     const list = await myFeedback();
@@ -2944,6 +3055,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
   applyMode();
   sysDark?.addEventListener?.("change", applyMode);
   $("#settingsBtn").addEventListener("click", openDrawer);
+  $("#noteBtn").addEventListener("click", openNotes);
   // Tünd rejim açarı Ayarlar pəncərəsindədir
   window.toggleMode = () => {
     try { localStorage.setItem(MODE_KEY, isDark() ? "light" : "dark"); } catch (e) {}
