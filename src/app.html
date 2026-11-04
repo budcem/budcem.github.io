@@ -1041,7 +1041,9 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
     },
     // Geri alma tarixçəsi: hər əməliyyatın əvvəlki halı yadda saxlanır (son 30)
     history: [],
-    pushHistory(entry) { this.history.push({ ...entry, t: Date.now() }); if (this.history.length > 30) this.history.shift(); },
+    // Silkələmə yalnız ən son əməliyyatı geri alır: yeni əməliyyat olanda açılır, hər geri alındıqda bağlanır
+    shakeArmed: false,
+    pushHistory(entry) { this.history.push({ ...entry, t: Date.now() }); if (this.history.length > 30) this.history.shift(); this.shakeArmed = true; },
     async saveRecord(r, fromUndo) {
       const i = state.records.findIndex(x => x.id === r.id);
       if (!fromUndo) this.pushHistory({ kind: "save", id: r.id, prev: i >= 0 ? state.records[i] : null });
@@ -1062,6 +1064,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
     // Son əməliyyatı geri qaytarır: yeni yazı silinir, dəyişdirilən və silinən yazı əvvəlki halına qayıdır
     undo() {
       const h = this.history.pop(); if (!h) return false;
+      this.shakeArmed = false;
       if (h.kind === "save" && !h.prev) this.deleteRecord(h.id, true);
       else this.saveRecord(h.prev, true);
       return true;
@@ -2567,7 +2570,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
     const a = e.accelerationIncludingGravity; if (!a) return;
     const m = Math.sqrt((a.x || 0) ** 2 + (a.y || 0) ** 2 + (a.z || 0) ** 2);
     const now = Date.now();
-    if (m > 26 && now - lastShake > 1500) { lastShake = now; if (store.undo()) toast("Geri alındı"); }
+    if (m > 26 && now - lastShake > 1500) { lastShake = now; if (store.shakeArmed && store.undo()) toast("Geri alındı"); }
   }
   async function setShake(on) {
     if (on) {
