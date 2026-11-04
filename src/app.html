@@ -1495,8 +1495,8 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
           <button class="link save" data-save ${valid() ? "" : "disabled"}>Saxla</button>
         </div>
         <div class="stack">
-          <div class="field"><span>Haradan</span><div class="chips">${xferList().map(a => `<button class="chip" data-from="${esc(a.id)}" aria-pressed="${f.from === a.id}">${esc(a.name)}</button>`).join("")}</div></div>
-          <div class="field"><span>Hara</span><div class="chips">${xferList().filter(a => !(isCard(f.from) && a.card)).map(a => `<button class="chip" data-to="${esc(a.id)}" aria-pressed="${f.to === a.id}">${esc(a.name)}</button>`).join("")}</div></div>
+          <label class="field"><span>Haradan</span><select id="x-from" class="input">${acctOptions(xferList(), f.from)}</select></label>
+          <label class="field"><span>Hara</span><select id="x-to" class="input">${acctOptions(xferList().filter(a => a.id !== f.from && !(isCard(f.from) && a.card)), f.to)}</select></label>
           <label class="amount-wrap"><input id="p-amount" class="num" inputmode="decimal" placeholder="0" value="${esc(f.amount)}" autocomplete="off"><em>₼</em></label>
           <label class="field"><span>Tarix</span><input id="p-date" class="input" type="date" value="${esc(f.date)}"></label>
           <label class="field"><span>Qeyd</span><input id="p-note" class="input" placeholder="İstəyə bağlı, məs. bankomat" value="${esc(f.note)}" maxlength="120"></label>
@@ -1506,12 +1506,16 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
       $("#p-amount").addEventListener("input", e => { f.amount = e.target.value; $("[data-save]").disabled = !valid(); });
       $("#p-date").addEventListener("change", e => { f.date = e.target.value; $("[data-save]").disabled = !valid(); });
       $("#p-note").addEventListener("input", e => { f.note = e.target.value; });
+      $("#x-from").addEventListener("change", e => {
+        f.from = e.target.value;
+        if (f.to === f.from || (isCard(f.from) && isCard(f.to))) f.to = accList().find(a => a.id !== f.from).id;
+        draw();
+      });
+      $("#x-to").addEventListener("change", e => { f.to = e.target.value; draw(); });
     };
     sheetHandler = e => {
       const t = e.target.closest("button"); if (!t) return;
-      if (t.dataset.from) { f.from = t.dataset.from; if (f.to === f.from || (isCard(f.from) && isCard(f.to))) f.to = accList().find(a => a.id !== f.from).id; draw(); }
-      else if (t.dataset.to) { f.to = t.dataset.to; if (f.from === f.to || (isCard(f.from) && isCard(f.to))) f.from = accList().find(a => a.id !== f.to).id; draw(); }
-      else if (t.hasAttribute("data-del")) {
+      if (t.hasAttribute("data-del")) {
         if (!confirmDel) { confirmDel = true; draw(); }
         else { store.deleteRecord(f.id); toast("Silindi"); closeSheet(); }
       }
@@ -1790,6 +1794,12 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
   // Bank kartları çoxdur (state.bankCards); acc = bank kartının id-si, "cash" nağddır, boş = "bank"
   const accList = () => [...state.bankCards.map(b => ({ id: b.id, name: b.name })), { id: "cash", name: "Nağd" }];
   const accName = id => String(id || "").startsWith("card:") ? (cardById(id.slice(5))?.name || "Taksit kartı") : (accList().find(a => a.id === id)?.name || "Bank kartı");
+  // Açılan siyahı üçün seçimlər: bank kartları, nağd və taksit kartları qruplarla
+  const acctOptions = (list, sel) => {
+    const opt = a => `<option value="${esc(a.id)}" ${a.id === sel ? "selected" : ""}>${esc(a.name)}</option>`;
+    const banks = list.filter(a => !a.card && a.id !== "cash"), cash = list.filter(a => a.id === "cash"), cards = list.filter(a => a.card);
+    return [banks.length ? `<optgroup label="Bank kartları">${banks.map(opt).join("")}</optgroup>` : "", cash.map(opt).join(""), cards.length ? `<optgroup label="Taksit kartları">${cards.map(opt).join("")}</optgroup>` : ""].join("");
+  };
   // Köçürmə üçün hesablar: bank kartları, nağd və taksit kartları ("card:<id>")
   const xferList = () => [...accList(), ...state.cards.map(c => ({ id: "card:" + c.id, name: c.name, card: true }))];
   const accOf = r => r.acc === "cash" ? "cash" : (r.acc && r.acc !== "bank" ? r.acc : "bank");

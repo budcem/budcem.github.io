@@ -39,7 +39,7 @@ Dəyişiklikdən sonra Playwright ilə iPhone ölçüsündə (390px) açıb əsa
 
 ## Bank kartları və sol menyu (2026-11-04)
 - Bank kartları: meta `bankCards: [{id, name}]` (`normBanks`, həmişə `bank` id-li kart var). Köhnə yazılar (acc yoxdur) `bank` kartındadır. Əməliyyatda `acc` = bank kartının id-si ("cash" nağd). `accList()`, `accOf()`, `accPatch()`, `accLabel()`, `bankChips()` köməkçiləridir. Əməliyyatı olan kart silinmir.
-- Köçürmə: `from`/`to` artıq istənilən hesab id-si ola bilər (çiplərlə seçilir).
+- Köçürmə: `from`/`to` istənilən hesab id-si ola bilər; iki açılan siyahı ilə seçilir (`acctOptions`, qruplar: Bank kartları, Nağd, Taksit kartları).
 - Bank kartında `opening` (başlanğıc balans, standart 0 — köhnə qalıqlar dəyişmir). "Mövcud balans" yazanda fərq `opening`-ə əlavə olunur (taksit kartı kimi). `accBalance` və `carryIn` opening-i nəzərə alır.
 - Qalıq kartında üç düymə: "Bank kartları" (bütün bank kartlarının cəmi, basanda Bank kartları bölməsi), "Nağd", "Taksit kartları" (ümumi borc, basanda Taksit kartları bölməsi); altında "Köçürmə". Ayrıca kart düymələri (tiles) yoxdur. Hesabat menyudadır.
 - Köçürmə taksit kartları ilə də işləyir: hədəf taksit kartıdırsa `cardpay` yazılır (`accPatch(from)`); taksit kartından bank/nağda köçürmə `kind: "transfer", from: "card:<id>"` — kartın borcunu artırır və öz qalığa əlavə olunur (`isCardOut`, `netOf`, `cardDebt`). Kartdan karta köçürmə yoxdur.
