@@ -2596,7 +2596,7 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
       const t = e.target.closest("button");
       if (!t) return;
       if (t.dataset.kind) { f.kind = t.dataset.kind; f.catId = null; catOpen = false; draw(); }
-      else if (t.hasAttribute("data-togglecats")) openPicker(f.kind === "expense" ? "Xərc maddəsi" : "Gəlir mənbəyi", byUsage(state.categories.filter(c => c.kind === f.kind)), f.catId, id => { f.catId = id; if (!isUtil(catById(id))) delete f.sub; draw(); });
+      else if (t.hasAttribute("data-togglecats")) openPicker(f.kind === "expense" ? "Xərc maddəsi" : "Gəlir mənbəyi", byName(state.categories.filter(c => c.kind === f.kind)), f.catId, id => { f.catId = id; if (!isUtil(catById(id))) delete f.sub; draw(); });
       else if (t.dataset.type) { f.type = t.dataset.type; draw(); }
       else if (t.dataset.bankacc) { f.acc = t.dataset.bankacc; draw(); }
       else if (t.dataset.pay) { if (t.dataset.pay === "card") f.pay = "card"; else { delete f.pay; f.acc = t.dataset.pay === "cash" ? "cash" : undefined; } draw(); }
@@ -2893,13 +2893,8 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
   }
 
   // Maddə seçimi ayrıca tam pəncərədə açılır: uzun siyahı rahat sürüşür, seçəndə forma geri qayıdır
-  // Seçim siyahısı: əvvəl ən tez-tez istifadə olunan maddələr (əməliyyat sayına görə, məbləğə görə yox),
-  // sayı eyni olanlar (və heç istifadə olunmayanlar) əlifba sırası ilə
-  function byUsage(list) {
-    const n = {};
-    state.records.forEach(r => { if (r.catId) n[r.catId] = (n[r.catId] || 0) + 1; });
-    return [...list].sort((a, b) => (n[b.id] || 0) - (n[a.id] || 0) || a.name.localeCompare(b.name, "az"));
-  }
+  // Seçim siyahısı həmişə əlifba sırası ilə (Azərbaycan əlifbası)
+  const byName = list => [...list].sort((a, b) => a.name.localeCompare(b.name, "az"));
   function openPicker(title, items, selected, onPick) {
     let root = $("#pickRoot");
     if (!root) { root = document.createElement("div"); root.id = "pickRoot"; document.body.appendChild(root); }
