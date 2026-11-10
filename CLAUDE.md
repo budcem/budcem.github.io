@@ -6,7 +6,7 @@ Sadə şəxsi xərc və gəlir izləmə PWA-sı. İstifadəçi Azərbaycan dilin
 - `src/app.html` — tətbiqin bütün kodu (HTML + CSS + JS, bir fayl). Dəyişiklikləri burada edin.
 - `src/build.py` — `src/app.html`-dən kökdəki `index.html`-i yaradır. Hər dəyişiklikdən sonra `python3 src/build.py` işlədin və hər iki faylı commit edin.
 - `index.html`, `manifest.json`, `sw.js`, ikonlar — GitHub Pages-də yayımlanan fayllar (main budağı, kök qovluq): https://budcem.github.io/ (repo budcem/budcem.github.io; köhnə elshanmov47/budcem ünvanı 2026-11-02 köçürüldü)
-- `sw.js` — oflayn işləmə üçün keş. Faylların siyahısı dəyişəndə `CACHE` versiyasını artırın.
+- `sw.js` — oflayn işləmə üçün keş. Faylların siyahısı dəyişəndə `CACHE` versiyasını artırın. Öz fayllar: əvvəlcə şəbəkə (yeniliklər dərhal), şəbəkə 3 s-dən çox ləngisə keşdəki nüsxə. Versiyalı kitabxanalar (gstatic Firebase, cdnjs): ayrıca `budcem-lib-v1` keşindən dərhal (cache-first, yeniləmədə silinmir; Firebase versiyası dəyişsə LIB adını artırın). Firebase skriptləri paralel yüklənir (`async=false`), build.py-da preload/preconnect var.
 
 ## Məlumat
 - Ayrıca saytda (GitHub Pages) hər kəs öz hesabı ilə daxil olur: Firebase layihəsi `budcem-1e99e` (Spark, pulsuz), Email/Password girişi. İstifadəçi adı `ad@budcem.app` e-poçtuna çevrilir. Məlumat Firestore-da `users/{uid}` sənədində (meta) və `users/{uid}/records` kolleksiyasındadır. Qayda: yalnız `request.auth.uid == uid`. Firebase SDK (compat 10.14.1) gstatic-dən yüklənir; sandboxda gstatic bloklanıb, test üçün `npm pack firebase@10.14.1` və Playwright route istifadə edin.

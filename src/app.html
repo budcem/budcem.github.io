@@ -628,10 +628,10 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
   };
   const FB_BASE = "https://www.gstatic.com/firebasejs/10.14.1/";
   const UPLOADED_KEY = "budcem.uploadedTo";
-  const loadScript = src => new Promise((ok, no) => { const el = document.createElement("script"); el.src = src; el.onload = ok; el.onerror = no; document.head.appendChild(el); });
+  // async=false: fayllar paralel yüklənir, amma ardıcıl işə düşür (app → auth → firestore)
+  const loadScript = src => new Promise((ok, no) => { const el = document.createElement("script"); el.src = src; el.async = false; el.onload = ok; el.onerror = no; document.head.appendChild(el); });
   async function loadFirebase() {
-    await loadScript(FB_BASE + "firebase-app-compat.js");
-    await Promise.all([loadScript(FB_BASE + "firebase-auth-compat.js"), loadScript(FB_BASE + "firebase-firestore-compat.js")]);
+    await Promise.all(["firebase-app-compat.js", "firebase-auth-compat.js", "firebase-firestore-compat.js"].map(f => loadScript(FB_BASE + f)));
     firebase.initializeApp(FB_CONFIG);
     const fs = firebase.firestore();
     try { await fs.enablePersistence({ synchronizeTabs: true }); } catch (e) {}
