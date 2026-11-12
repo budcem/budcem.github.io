@@ -31,12 +31,12 @@ Dəyişiklikdən sonra Playwright ilə iPhone ölçüsündə (390px) açıb əsa
 - Xərc və gəlir formasında valyuta seçimi var (₼ AZN, $ USD, € EUR). `amount` həmişə manatla saxlanılır, hesabatlar dəyişməyib.
 - Xarici valyuta yazılarında əlavə sahələr: `cur` ("USD"|"EUR"), `orig` (valyutada məbləğ), `rate` (1 valyuta = neçə ₼). Sətirdə "10 $ (kurs 1,75)" görünür.
 - Kurs standart: USD 1,70, EUR 2,00 (təxmini). Son istifadə olunan kurs `budcem.rate.<KOD>` localStorage-da qalır. Kurs saytda avtomatik yenilənmir.
-- Kart ödənişi, köçürmə və xatırladıcılar hələ yalnız manatla işləyir.
+- Xatırladıcılar yalnız manatla işləyir.
 
 ## Limit xəbərdarlığı
 - Plan bölməsinin yuxarı kartı yalnız limiti olan başlıqların xərclərini plana qarşı sayır; limitsiz başlıqların xərci ayrıca "plana daxil deyil" kimi yazılır (2026-11-12, istifadəçi istəyi).
 - Plan limitləri (başlıq və maddə, aylıq) Xülasədə "Limit xəbərdarlığı" kartında göstərilir: limitin 80%-i və ya üzərində olanlar, aşılanlar qırmızı. `limitAlerts()` / `limitAlertsHtml()` funksiyaları.
-- Xülasədə "Büdcə" (əvvəl "Qalıq") yanındakı göz düyməsi qalıq, gəlir, xərc və bank/nağd məbləğlərini "• • • •" ilə əvəz edir (`shownMoney`, `state.hideBal`, yadda qalmır; hər açılışda görünür).
+- Xülasədə "Büdcəm" (əvvəl "Qalıq", sonra "Büdcə") yanındakı göz düyməsi qalıq, gəlir, xərc və bank/nağd məbləğlərini "• • • •" ilə əvəz edir (`shownMoney`, `state.hideBal`, yadda qalmır; hər açılışda görünür).
 
 ## Bank kartları və sol menyu (2026-11-04)
 - Bank kartları: meta `bankCards: [{id, name}]` (`normBanks`, həmişə `bank` id-li kart var). Köhnə yazılar (acc yoxdur) `bank` kartındadır. Əməliyyatda `acc` = bank kartının id-si ("cash" nağd). `accList()`, `accOf()`, `accPatch()`, `accLabel()`, `bankChips()` köməkçiləridir. Əməliyyatı olan kart silinmir.
@@ -50,3 +50,10 @@ Dəyişiklikdən sonra Playwright ilə iPhone ölçüsündə (390px) açıb əsa
 - Əməliyyatlar siyahısında hər yazının altında hesab balansının dəyişməsi: "Bank kartı: 28,89 ₼ → 27,89 ₼" (`getBalSteps`, `balLine`; render-də yenidən hesablanır). Bütün yazılar tarix+created sırası ilə keçilir. Taksit kartı xərci, karta ödəniş və kartdan köçürmədə taksit borcu göstərilir; köçürmədə "haradan" hesabı. Yazının altında rəngli "Balansı göstər" yazısı var: basanda dəyişiklik açılır, "Gizlə" ilə bağlanır (`balOpen`, `data-balt`; yadda qalmır, redaktə pəncərəsini açmır). Göz düyməsindən asılı deyil (istifadəçi istəyi).
 - Hesabat → "Hesablar": seçilmiş hesab (bank kartı, nağd və ya taksit kartı, açılan siyahı) üzrə aylar: ayın əvvəli, giriş, çıxış, dəyişiklik, ayın sonu (`accountMonths`). Aya basanda həmin ayın günləri (yalnız hərəkət olan günlər) açılır. Taksit kartında borc: alış/çıxarış artırır, ödəniş azaldır. Excel faylında "Hesablar" (aylar) və "Hesablar (günlər)" vərəqləri.
 - Əməliyyat forması (2026-11-12, yığcam): Saxla/Ləğv et aşağıda (`.rec-bar`, baş barmaq üçün), valyuta məbləğ sahəsinin içində (₼ $ €, `.curs`), başlıqlar bir sırada 4 düymə (`.types.four`), Tarix və Qeyd yan-yana (`.dn`). İstifadəçi bəyəndi (2026-11-12). Köçürmə pəncərəsi də eyni formadadır (məbləğ yuxarıda, Haradan/Hara yan-yana).
+
+## Valyuta hesabları (2026-11-12)
+- Valyuta bank kartı və valyuta nağdı `bankCards`-dadır: `cur` ("USD"|"EUR"), nağd üçün `cash: true` (id `cash-…`), `openingAzn` (başlanğıc balansın manat dəyəri, Büdcəm üçün son kursla). Manat nağdı əvvəlki kimi `"cash"`. Köməkçilər: `accCur`, `isCashAcc`, `bankList`, `cashFxList`, `moneyIn`, `accAmt`, `fxSums`, `cashChips`.
+- Valyuta hesabının balansı öz valyutasındadır (`accDelta` → `accAmt`): xərc/gəlirdə `orig`, köçürmədə `fromOrig`/`toOrig`. `amount` həmişə manatla qalır, hesabatlar və Büdcəm manatla.
+- Əməliyyat formasında valyuta hesabı seçiləndə valyuta həmin hesaba bağlanır. Köçürmədə valyutalar fərqlidirsə "Gələn məbləğ" sahəsi çıxır (son kursla doldurulur); manat ↔ valyuta dəyişməsi `budcem.rate.<KOD>` kursunu yeniləyir. Valyuta hesabından taksit kartına ödəniş `cardpay` + `cur/orig/rate`.
+- Xülasədə Bank kartları və Nağd düymələrində valyuta cəmləri kiçik sətirdə ("60 $"). Nağd düyməsi "Nağd" pəncərəsini açır (`openCashSheet`: dollar/avro nağdı əlavə et, mövcud balans).
+- Büdcəm kartında ₼ $ € seçimi (`budCur`, `budcem.budCur` yadda qalır): rəqəmlər son kursla çevrilir. İstifadəçi istədi: büdcə həm USD, həm manatla görünə bilsin.
