@@ -366,6 +366,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
 .tile b { display: block; font-size: 15px; font-weight: 600; }
 .tile span.s { display: block; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tile.warn span.s { color: var(--credit); font-weight: 600; }
+.balstep { font-size: 12px; opacity: .85; }
 .limit-alerts .la { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 15px; }
 .limit-alerts .la:first-of-type { border-top: 0; }
 .limit-alerts .la.over span:last-child { color: var(--expense); font-weight: 600; }
@@ -1217,6 +1218,7 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
 
   // ---------- Ekranlar ----------
   function render() {
+    balSteps = null;
     $("#monthLabel").textContent = `${MON_SHORT[state.month.getMonth()]} ${state.month.getFullYear()}`;
     $("#monthLabel").setAttribute("aria-label", `${MONTHS[state.month.getMonth()]} ${state.month.getFullYear()}, ay seçin`);
     $("#title").textContent = { summary: "Xülasə", records: "Əməliyyatlar", plan: "Plan", cats: "Kateqoriyalar" }[state.tab];
@@ -2121,15 +2123,46 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
     </div>`;
   }
 
+  // Hər əməliyyatdan sonra hesabın balansı (bankın "28,89 ₼ → 27,89 ₼" kimi).
+  // Yazılar tarix və yaradılma vaxtı ilə ardıcıl keçilir; bank kartlarında başlanğıc balans, taksit kartında borc hesablanır.
+  let balSteps = null;
+  function getBalSteps() {
+    if (balSteps) return balSteps;
+    const bal = {}, debt = {};
+    state.bankCards.forEach(b => { bal[b.id] = b.opening || 0; });
+    bal.cash = 0;
+    state.cards.forEach(c => { debt[c.id] = c.opening || 0; });
+    const steps = {};
+    const list = state.records.filter(r => r.date).sort((a, b) => a.date.localeCompare(b.date) || (a.created || 0) - (b.created || 0));
+    for (const r of list) {
+      const a = Number(r.amount) || 0;
+      // Göstəriləcək hesab: taksit kartı ilə bağlı yazılarda borc, qalanlarda pulun çıxdığı/girdiyi hesab
+      const cardId = isCardExp(r) || r.kind === "cardpay" ? cardIdOf(r) : isCardOut(r) ? r.from.slice(5) : null;
+      const accId = cardId ? null : r.kind === "transfer" ? r.from : accOf(r);
+      const before = cardId ? (debt[cardId] || 0) : (bal[accId] || 0);
+      // Bütün hesablar yenilənir
+      Object.keys(bal).forEach(id => { bal[id] += accDelta(r, id); });
+      if (cardId) debt[cardId] = (debt[cardId] || 0) + (r.kind === "cardpay" ? -a : a);
+      const after = cardId ? debt[cardId] : bal[accId];
+      steps[r.id] = { name: cardId ? `${cardById(cardId)?.name || "Taksit kartı"} borcu` : accName(accId), before, after };
+    }
+    return balSteps = steps;
+  }
+  function balLine(r) {
+    if (state.hideBal) return "";
+    const st = getBalSteps()[r.id];
+    if (!st) return "";
+    return `<div class="sub balstep">${esc(st.name)}: <span class="num">${money(st.before)} → ${money(st.after)}</span></div>`;
+  }
   function rowHtml(r) {
     if (r.kind === "transfer") return `<button class="row" data-edit="${esc(r.id)}">
       <span class="badge" style="background:var(--surface-2);color:var(--accent)">⇄</span>
-      <span class="t"><div>Köçürmə</div><div class="sub">${[`${accName(r.from)} → ${accName(r.to)}`, r.note].filter(Boolean).map(esc).join(" · ")}</div></span>
+      <span class="t"><div>Köçürmə</div><div class="sub">${[`${accName(r.from)} → ${accName(r.to)}`, r.note].filter(Boolean).map(esc).join(" · ")}</div>${balLine(r)}</span>
       <span class="amt num muted">${money(Number(r.amount))}</span>
     </button>`;
     if (r.kind === "cardpay") return `<button class="row" data-edit="${esc(r.id)}">
       ${badge(cardName(r))}
-      <span class="t"><div>Karta ödəniş</div><div class="sub">${[cardName(r), r.acc === "cash" ? "Nağddan" : "", "Xərc deyil", r.note].filter(Boolean).map(esc).join(" · ")}</div></span>
+      <span class="t"><div>Karta ödəniş</div><div class="sub">${[cardName(r), r.acc === "cash" ? "Nağddan" : "", "Xərc deyil", r.note].filter(Boolean).map(esc).join(" · ")}</div>${balLine(r)}</span>
       <span class="amt num muted">${money(Number(r.amount))}</span>
     </button>`;
     const c = catById(r.catId);
@@ -2138,7 +2171,7 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
     const sub = [r.sub, r.kind === "income" ? "Gəlir" : TYPE[r.type]?.title, isCardExp(r) ? cardName(r) : accLabel(r), fx, r.note].filter(Boolean).map(esc).join(" · ");
     return `<button class="row" data-edit="${esc(r.id)}">
       ${badge(name)}
-      <span class="t"><div>${esc(name)}</div><div class="sub">${sub}</div></span>
+      <span class="t"><div>${esc(name)}</div><div class="sub">${sub}</div>${balLine(r)}</span>
       <span class="amt num ${r.kind === "income" ? "in" : ""}">${r.kind === "income" ? "+" : "−"}${money(Number(r.amount))}</span>
     </button>`;
   }
