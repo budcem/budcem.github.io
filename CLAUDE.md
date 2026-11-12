@@ -34,6 +34,7 @@ Dəyişiklikdən sonra Playwright ilə iPhone ölçüsündə (390px) açıb əsa
 - Kart ödənişi, köçürmə və xatırladıcılar hələ yalnız manatla işləyir.
 
 ## Limit xəbərdarlığı
+- Plan bölməsinin yuxarı kartı yalnız limiti olan başlıqların xərclərini plana qarşı sayır; limitsiz başlıqların xərci ayrıca "plana daxil deyil" kimi yazılır (2026-11-12, istifadəçi istəyi).
 - Plan limitləri (başlıq və maddə, aylıq) Xülasədə "Limit xəbərdarlığı" kartında göstərilir: limitin 80%-i və ya üzərində olanlar, aşılanlar qırmızı. `limitAlerts()` / `limitAlertsHtml()` funksiyaları.
 - Xülasədə "Büdcə" (əvvəl "Qalıq") yanındakı göz düyməsi qalıq, gəlir, xərc və bank/nağd məbləğlərini "• • • •" ilə əvəz edir (`shownMoney`, `state.hideBal`, yadda qalmır; hər açılışda görünür).
 

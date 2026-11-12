@@ -2104,7 +2104,11 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
     const out = sum(exp);
     const P = state.plan;
     const planOut = TYPES.reduce((a, t) => a + (Number(P.types[t.id]) || 0), 0);
-    const left = planOut - out;
+    // Yalnız limiti olan başlıqların xərcləri plana qarşı sayılır; limitsiz başlıqlar ayrıca göstərilir
+    const hasLim = id => (Number(P.types[id]) || 0) > 0;
+    const outPlan = sum(exp.filter(r => hasLim(r.type)));
+    const outFree = out - outPlan;
+    const left = planOut - outPlan;
     const pct = (v, p) => p > 0 ? Math.min(v / p * 100, 100).toFixed(1) : 0;
     const msg = (v, p) => !p ? `<div class="msg">Limit qoyulmayıb</div>` : v > p
       ? `<div class="msg over">Limit ${money(v - p)} aşılıb</div>`
@@ -2135,11 +2139,11 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
           <div><small>Qənaət planı</small><b class="num ${P.income - planOut < 0 ? "bal-neg" : ""}">${P.income ? money(P.income - planOut) : "–"}</b></div>
         </div>
         <div class="plan-big">
-          <b class="num ${planOut && out > planOut ? "bal-neg" : ""}">${money(out)}</b>
+          <b class="num ${planOut && outPlan > planOut ? "bal-neg" : ""}">${money(planOut ? outPlan : out)}</b>
           <span class="num">${planOut ? `${money(planOut)} plandan` : "xərclənib"}</span>
         </div>
-        <div class="prog ${planOut && out > planOut ? "over" : ""}"><i style="width:${pct(out, planOut)}%"></i></div>
-        <p class="note" style="text-align:left;margin:8px 0 0">${!planOut ? "Aşağıda başlıqlara toxunub aylıq limit yazın." : left >= 0 ? `Bu ay hələ ${money(left)} xərcləyə bilərsiniz.` : `Plan ${money(-left)} aşılıb.`}${P.income ? ` Faktiki gəlir: ${money(inc)}.` : ""}</p>
+        <div class="prog ${planOut && outPlan > planOut ? "over" : ""}"><i style="width:${pct(outPlan, planOut)}%"></i></div>
+        <p class="note" style="text-align:left;margin:8px 0 0">${!planOut ? "Aşağıda başlıqlara toxunub aylıq limit yazın." : left >= 0 ? `Bu ay hələ ${money(left)} xərcləyə bilərsiniz.` : `Plan ${money(-left)} aşılıb.`}${planOut && outFree > 0 ? ` Limitsiz başlıqlarda xərc: ${money(outFree)} (plana daxil deyil).` : ""}${P.income ? ` Faktiki gəlir: ${money(inc)}.` : ""}</p>
       </section>
       <section class="card" style="padding-block:10px 6px">
         <p class="label" style="margin-top:6px">Başlıqlar üzrə limit</p>
