@@ -345,6 +345,8 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
 .tile span.s { display: block; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tile.warn span.s { color: var(--credit); font-weight: 600; }
 .balstep { font-size: 12px; opacity: .85; }
+.tbl tr.rmon { cursor: pointer; }
+.tbl tr.rmon td:first-child u { text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); text-underline-offset: 3px; }
 .limit-alerts .la { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 15px; }
 .limit-alerts .la:first-of-type { border-top: 0; }
 .limit-alerts .la.over span:last-child { color: var(--expense); font-weight: 600; }
@@ -1644,7 +1646,7 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
   }
 
   // Hesab üzrə aylıq hərəkət: ayın əvvəli, giriş, çıxış, son. Taksit kartında borc (alış/çıxarış artırır, ödəniş azaldır).
-  function accountMonths(id, year) {
+  function accountMonths(id, year, month) {
     const isCard = id.startsWith("card:");
     const cid = id.slice(5);
     const recs = isCard ? cardRecs(cid) : state.records;
@@ -1655,16 +1657,27 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
     };
     const opening = isCard ? (cardById(cid)?.opening || 0) : bankOpening(id);
     const before = until => recs.reduce((t, r) => r.date && r.date < until ? t + delta(r) : t, opening);
-    return MONTHS.map((name, i) => {
-      const from = `${year}-${pad(i + 1)}-01`, to = `${year}-${pad(i + 1)}-31`;
+    const period = (name, from, to) => {
       let inc = 0, out = 0;
       recs.forEach(r => { if (r.date && r.date >= from && r.date <= to) { const d = delta(r); if (d > 0) inc += d; else out -= d; } });
       const start = before(from);
       return { name, start, inc, out, end: start + inc - out };
-    });
+    };
+    // month verilsə: həmin ayın günləri (yalnız hərəkət olan günlər)
+    if (month != null) {
+      const last = new Date(year, month + 1, 0).getDate();
+      const out = [];
+      for (let d = 1; d <= last; d++) {
+        const day = `${year}-${pad(month + 1)}-${pad(d)}`;
+        const p = period(`${d} ${MON_SHORT[month]}`, day, day);
+        if (p.inc || p.out) out.push(p);
+      }
+      return out;
+    }
+    return MONTHS.map((name, i) => period(name, `${year}-${pad(i + 1)}-01`, `${year}-${pad(i + 1)}-31`));
   }
   function openReport() {
-    let year = state.month.getFullYear(), view = "months", accSel = "cash";
+    let year = state.month.getFullYear(), view = "months", accSel = "cash", accMonth = null;
     const chevL = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>`;
     const chevR = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>`;
     const pivot = (rows, label) => {
@@ -1691,17 +1704,19 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
         </table></div>`;
       } else if (view === "accs") {
         const isCard = accSel.startsWith("card:");
-        const rows = accountMonths(accSel, year);
+        const daily = accMonth != null;
+        const rows = accountMonths(accSel, year, accMonth);
         const now = new Date(), lastM = year < now.getFullYear() ? 11 : year > now.getFullYear() ? -1 : now.getMonth();
-        const shown = rows.filter((m, i) => i <= lastM || m.inc || m.out);
+        const shown = daily ? rows : rows.map((m, i) => ({ ...m, i })).filter((m, i) => i <= lastM || m.inc || m.out);
         const ch = v => `<td class="${v < 0 ? "neg" : v > 0 ? "pos" : "z"}">${v ? (v > 0 ? "+" : "") + cell(v).replace(/<\/?td[^>]*>/g, "") : "–"}</td>`;
         const tot = shown.reduce((a, m) => ({ inc: a.inc + m.inc, out: a.out + m.out }), { inc: 0, out: 0 });
         body = `<label class="field"><span>Hesab</span><select id="r-acc" class="input">${acctOptions(xferList(), accSel)}</select></label>
+          ${daily ? `<button class="link" data-raccback style="justify-self:start">‹ ${MONTHS[accMonth]} — aylara qayıt</button>` : `<p class="note" style="text-align:left;margin:0">Günlər üzrə baxmaq üçün aya basın.</p>`}
           ${shown.length ? `<div class="tbl-wrap"><table class="tbl">
-          <thead><tr><th>Ay</th><th>${isCard ? "Borc (əvvəl)" : "Ayın əvvəli"}</th><th>${isCard ? "Alış" : "Giriş"}</th><th>${isCard ? "Ödəniş" : "Çıxış"}</th><th>Dəyişiklik</th><th>${isCard ? "Borc (son)" : "Ayın sonu"}</th></tr></thead>
-          <tbody>${shown.map(m => `<tr><td>${m.name}</td>${cell(m.start)}${cell(m.inc)}${cell(m.out)}${ch(m.end - m.start)}${cell(m.end)}</tr>`).join("")}
+          <thead><tr><th>${daily ? "Gün" : "Ay"}</th><th>${isCard ? "Borc (əvvəl)" : daily ? "Günün əvvəli" : "Ayın əvvəli"}</th><th>${isCard ? "Alış" : "Giriş"}</th><th>${isCard ? "Ödəniş" : "Çıxış"}</th><th>Dəyişiklik</th><th>${isCard ? "Borc (son)" : daily ? "Günün sonu" : "Ayın sonu"}</th></tr></thead>
+          <tbody>${shown.map(m => `<tr ${daily ? "" : `class="rmon" data-rmon="${m.i}"`}><td>${daily ? m.name : `<u>${m.name}</u>`}</td>${cell(m.start)}${cell(m.inc)}${cell(m.out)}${ch(m.end - m.start)}${cell(m.end)}</tr>`).join("")}
           <tr class="total"><td>Cəmi</td><td>–</td>${cell(tot.inc)}${cell(tot.out)}${ch(tot.inc - tot.out)}<td>–</td></tr></tbody>
-        </table></div>` : `<div class="empty"><b>${year} ilində məlumat yoxdur</b></div>`}
+        </table></div>` : `<div class="empty"><b>${daily ? `${MONTHS[accMonth]} ayında hərəkət yoxdur` : `${year} ilində məlumat yoxdur`}</b></div>`}
           <p class="note" style="text-align:left">${isCard ? "Taksit kartında rəqəmlər borcdur: alış və kartdan çıxarılan pul borcu artırır, ödəniş azaldır." : "Giriş: gəlir və bu hesaba köçürmə. Çıxış: xərc, köçürmə və karta ödəniş."}</p>`;
       } else if (view === "cats") {
         body = d.cats.length ? pivot(d.cats, "Xərc maddəsi") : `<div class="empty"><b>${year} ilində xərc yoxdur</b></div>`;
@@ -1734,11 +1749,13 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
       const w = document.querySelector(".sheet .tbl-wrap");
       if (w && (view === "cats" || view === "inc") && year === new Date().getFullYear()) w.scrollLeft = w.scrollWidth;
       $("#r-acc")?.addEventListener("change", e => { accSel = e.target.value; draw(); });
+      document.querySelectorAll(".sheet tr[data-rmon]").forEach(tr => tr.addEventListener("click", () => { accMonth = Number(tr.dataset.rmon); draw(); }));
     };
     sheetHandler = e => {
       const t = e.target.closest("button"); if (!t) return;
-      if (t.dataset.ryear) { year += Number(t.dataset.ryear); draw(); }
-      else if (t.dataset.rview) { view = t.dataset.rview; draw(); }
+      if (t.dataset.ryear) { year += Number(t.dataset.ryear); accMonth = null; draw(); }
+      else if (t.dataset.rview) { view = t.dataset.rview; accMonth = null; draw(); }
+      else if (t.hasAttribute("data-raccback")) { accMonth = null; draw(); }
       else if (t.hasAttribute("data-xlsx")) exportXlsx(year, t);
     };
     draw();
