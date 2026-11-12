@@ -230,6 +230,7 @@ textarea.input { resize: vertical; min-height: 120px; font: inherit; font-size: 
 .row .sub { font-size: 13px; color: var(--muted); }
 .row .amt { font-weight: 600; }
 .row .amt.in { color: var(--income); }
+.row .amt.out { color: var(--expense); }
 .chev { color: var(--muted); }
 
 .empty { text-align: center; color: var(--muted); padding: 40px 16px; }
@@ -2254,7 +2255,7 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
     return `<button class="row" data-edit="${esc(r.id)}">
       ${badge(name)}
       <span class="t"><div>${esc(name)}</div><div class="sub">${sub}</div>${balLine(r)}</span>
-      <span class="amt num ${r.kind === "income" ? "in" : ""}">${r.kind === "income" ? "+" : "−"}${money(Number(r.amount))}</span>
+      <span class="amt num ${r.kind === "income" ? "in" : "out"}">${r.kind === "income" ? "+" : "−"}${money(Number(r.amount))}</span>
     </button>`;
   }
 
