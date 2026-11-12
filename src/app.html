@@ -1570,7 +1570,7 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
     const f = rec ? { ...rec, amount: fmt(rec.fromOrig ?? rec.amount), recv: fmt(rec.toOrig ?? rec.amount), recvSet: true }
                   : { id: uid(), kind: "transfer", from: "bank", to: "cash", amount: "", recv: "", date: ymd(new Date()), note: "", created: Date.now() };
     // Valyutalar fərqlidirsə (məs. ₼ → $), "gələn məbləğ" ayrıca yazılır; standart olaraq son kursla hesablanır
-    const curF = () => isCard(f.from) ? null : accCur(f.from), curT = () => isCard(f.to) ? null : accCur(f.to);
+    const curF = () => isCard(f.from) ? null : accCur(f.from), curT = () => isCard(f.to) ? null : String(f.to).startsWith("new:") ? f.to.slice(4) : accCur(f.to);
     const fxX = () => curF() !== curT();
     const autoRecv = () => { const sent = parseMoney(f.amount) || 0, azn = curF() ? sent * lastRate(curF()) : sent; return curT() ? azn / lastRate(curT()) : azn; };
     const recvOf = () => fxX() ? (f.recvSet ? parseMoney(f.recv) : autoRecv()) : parseMoney(f.amount);
@@ -1586,13 +1586,13 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
           ${fxX() ? `<label class="field"><span>Gələn məbləğ (${curT() ? CUR_SYM[curT()] : "₼"})</span><input id="p-recv" class="input num" inputmode="decimal" placeholder="0" value="${esc(f.recvSet ? f.recv : (autoRecv() ? plainNum(autoRecv()).replace(/\s/g, "") : ""))}"></label>` : ""}
           <div class="dn even">
             <label class="field"><span>Haradan</span><select id="x-from" class="input">${acctOptions(xferList(), f.from)}</select></label>
-            <label class="field"><span>Hara</span><select id="x-to" class="input">${acctOptions(xferList().filter(a => a.id !== f.from && !(isCard(f.from) && a.card)), f.to)}</select></label>
+            <label class="field"><span>Hara</span><select id="x-to" class="input">${acctOptions([...xferList(), ...newCashOpts()].filter(a => a.id !== f.from && !(isCard(f.from) && a.card)), f.to)}</select></label>
           </div>
           <div class="dn">
             <label class="field"><span>Tarix</span><input id="p-date" class="input" type="date" value="${esc(f.date)}"></label>
             <label class="field"><span>Qeyd</span><input id="p-note" class="input" placeholder="məs. bankomat" value="${esc(f.note)}" maxlength="120"></label>
           </div>
-          <p class="note" style="margin:0">${isCard(f.to) ? `Bu, ${esc(accName(f.to))} kartına ödənişdir: xərc sayılmır, kartın borcunu azaldır.` : isCard(f.from) ? `Pul ${esc(accName(f.from))} kartından ${esc(accName(f.to))} hesabına keçir: kartın borcu artır, xərc sayılmır.` : `Köçürmə xərc və ya gəlir sayılmır: ümumi qalıq dəyişmir, yalnız pul ${esc(accName(f.from))} hesabından ${esc(accName(f.to))} hesabına keçir.`}</p>
+          <p class="note" style="margin:0">${isCard(f.to) ? `Bu, ${esc(accName(f.to))} kartına ödənişdir: xərc sayılmır, kartın borcunu azaldır.` : isCard(f.from) ? `Pul ${esc(accName(f.from))} kartından ${esc(accName(f.to))} hesabına keçir: kartın borcu artır, xərc sayılmır.` : fxX() ? `Valyuta dəyişməsi: pul ${esc(accName(f.from))} hesabından ${esc(accName(f.to))} hesabına keçir, xərc və ya gəlir sayılmır.${String(f.to).startsWith("new:") ? ` ${esc(accName(f.to))} hesabı avtomatik açılacaq.` : ""}` : `Köçürmə xərc və ya gəlir sayılmır: ümumi qalıq dəyişmir, yalnız pul ${esc(accName(f.from))} hesabından ${esc(accName(f.to))} hesabına keçir.`}</p>
           ${editing ? `<button class="danger ${confirmDel ? "confirm" : ""}" data-del>${confirmDel ? "Silməyi təsdiqləyin" : "Köçürməni sil"}</button>` : ""}
         </div>
         <div class="rec-bar">
@@ -1624,6 +1624,11 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
         if (!valid()) return;
         const r2 = v => Math.round(v * 100) / 100;
         const sent = r2(parseMoney(f.amount)), recv = r2(recvOf());
+        if (String(f.to).startsWith("new:")) {
+          const c = f.to.slice(4), id = "cash-" + uid().slice(0, 10);
+          state.bankCards = [...state.bankCards, { id, name: c === "USD" ? "Nağd dollar" : "Nağd avro", opening: 0, cur: c, openingAzn: 0, cash: true }];
+          store.saveMeta(); f.to = id;
+        }
         const cF = curF(), cT = curT();
         // amount həmişə manatla: manat tərəfi varsa o, yoxdursa son kursla
         const amount = !cF ? sent : !cT ? recv : r2(sent * lastRate(cF));
@@ -1984,14 +1989,16 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
   // Valyuta hesablarının cəmi valyuta üzrə: "100 $ · 50 €"
   const fxSums = list => { const t = {}; list.filter(b => b.cur).forEach(b => { t[b.cur] = (t[b.cur] || 0) + accBalance(b.id, "9999-12-31"); }); return Object.entries(t).map(([c, v]) => shownIn(v, c)).join(" · "); };
   const accList = () => [...bankList().map(b => ({ id: b.id, name: accDisp(b) })), { id: "cash", name: "Nağd" }, ...cashFxList().map(b => ({ id: b.id, name: b.name }))];
-  const accName = id => String(id || "").startsWith("card:") ? (cardById(id.slice(5))?.name || "Taksit kartı") : (accList().find(a => a.id === id)?.name || "Bank kartı");
+  const accName = id => String(id || "").startsWith("new:") ? (id === "new:USD" ? "Nağd dollar" : "Nağd avro") : String(id || "").startsWith("card:") ? (cardById(id.slice(5))?.name || "Taksit kartı") : (accList().find(a => a.id === id)?.name || "Bank kartı");
   // Açılan siyahı üçün seçimlər: bank kartları, nağd və taksit kartları qruplarla
   const acctOptions = (list, sel) => {
     const opt = a => `<option value="${esc(a.id)}" ${a.id === sel ? "selected" : ""}>${esc(a.name)}</option>`;
-    const banks = list.filter(a => !a.card && !isCashAcc(a.id)), cash = list.filter(a => isCashAcc(a.id)), cards = list.filter(a => a.card);
+    const banks = list.filter(a => !a.card && !a.newCash && !isCashAcc(a.id)), cash = list.filter(a => a.newCash || isCashAcc(a.id)), cards = list.filter(a => a.card);
     return [banks.length ? `<optgroup label="Bank kartları">${banks.map(opt).join("")}</optgroup>` : "", cash.map(opt).join(""), cards.length ? `<optgroup label="Taksit kartları">${cards.map(opt).join("")}</optgroup>` : ""].join("");
   };
   // Köçürmə üçün hesablar: bank kartları, nağd və taksit kartları ("card:<id>")
+  // Köçürmədə hələ açılmamış valyuta nağdı da seçilə bilər ("new:USD"); saxlayanda hesab avtomatik yaranır
+  const newCashOpts = () => ["USD", "EUR"].filter(c => !cashFxList().some(b => b.cur === c)).map(c => ({ id: "new:" + c, name: c === "USD" ? "Nağd dollar" : "Nağd avro", newCash: true }));
   const xferList = () => [...accList(), ...state.cards.map(c => ({ id: "card:" + c.id, name: c.name, card: true }))];
   const accOf = r => r.acc === "cash" ? "cash" : (r.acc && r.acc !== "bank" ? r.acc : "bank");
   // Əməliyyatın hesab sahəsi (köhnə "bank" yazılarında heç nə yazılmır)
