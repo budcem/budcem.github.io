@@ -1643,8 +1643,28 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
     return { recs, months, cats: rows(cats), incCats: rows(incCats) };
   }
 
+  // Hesab üzrə aylıq hərəkət: ayın əvvəli, giriş, çıxış, son. Taksit kartında borc (alış/çıxarış artırır, ödəniş azaldır).
+  function accountMonths(id, year) {
+    const isCard = id.startsWith("card:");
+    const cid = id.slice(5);
+    const recs = isCard ? cardRecs(cid) : state.records;
+    const delta = r => {
+      if (!isCard) return accDelta(r, id);
+      const a = Number(r.amount) || 0;
+      return r.kind === "cardpay" ? -a : a;
+    };
+    const opening = isCard ? (cardById(cid)?.opening || 0) : bankOpening(id);
+    const before = until => recs.reduce((t, r) => r.date && r.date < until ? t + delta(r) : t, opening);
+    return MONTHS.map((name, i) => {
+      const from = `${year}-${pad(i + 1)}-01`, to = `${year}-${pad(i + 1)}-31`;
+      let inc = 0, out = 0;
+      recs.forEach(r => { if (r.date && r.date >= from && r.date <= to) { const d = delta(r); if (d > 0) inc += d; else out -= d; } });
+      const start = before(from);
+      return { name, start, inc, out, end: start + inc - out };
+    });
+  }
   function openReport() {
-    let year = state.month.getFullYear(), view = "months";
+    let year = state.month.getFullYear(), view = "months", accSel = "cash";
     const chevL = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>`;
     const chevR = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>`;
     const pivot = (rows, label) => {
@@ -1669,6 +1689,20 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
           <thead><tr><th>Ay</th><th>Gəlir</th><th>Xərc</th><th>Qalıq</th><th>Ehtiyac</th><th>İstək</th><th>İnvest.</th><th>Kredit</th></tr></thead>
           <tbody>${d.months.map(m => row(m.name, m)).join("")}${row("Cəmi", t, "total")}</tbody>
         </table></div>`;
+      } else if (view === "accs") {
+        const isCard = accSel.startsWith("card:");
+        const rows = accountMonths(accSel, year);
+        const now = new Date(), lastM = year < now.getFullYear() ? 11 : year > now.getFullYear() ? -1 : now.getMonth();
+        const shown = rows.filter((m, i) => i <= lastM || m.inc || m.out);
+        const ch = v => `<td class="${v < 0 ? "neg" : v > 0 ? "pos" : "z"}">${v ? (v > 0 ? "+" : "") + cell(v).replace(/<\/?td[^>]*>/g, "") : "–"}</td>`;
+        const tot = shown.reduce((a, m) => ({ inc: a.inc + m.inc, out: a.out + m.out }), { inc: 0, out: 0 });
+        body = `<label class="field"><span>Hesab</span><select id="r-acc" class="input">${acctOptions(xferList(), accSel)}</select></label>
+          ${shown.length ? `<div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Ay</th><th>${isCard ? "Borc (əvvəl)" : "Ayın əvvəli"}</th><th>${isCard ? "Alış" : "Giriş"}</th><th>${isCard ? "Ödəniş" : "Çıxış"}</th><th>Dəyişiklik</th><th>${isCard ? "Borc (son)" : "Ayın sonu"}</th></tr></thead>
+          <tbody>${shown.map(m => `<tr><td>${m.name}</td>${cell(m.start)}${cell(m.inc)}${cell(m.out)}${ch(m.end - m.start)}${cell(m.end)}</tr>`).join("")}
+          <tr class="total"><td>Cəmi</td><td>–</td>${cell(tot.inc)}${cell(tot.out)}${ch(tot.inc - tot.out)}<td>–</td></tr></tbody>
+        </table></div>` : `<div class="empty"><b>${year} ilində məlumat yoxdur</b></div>`}
+          <p class="note" style="text-align:left">${isCard ? "Taksit kartında rəqəmlər borcdur: alış və kartdan çıxarılan pul borcu artırır, ödəniş azaldır." : "Giriş: gəlir və bu hesaba köçürmə. Çıxış: xərc, köçürmə və karta ödəniş."}</p>`;
       } else if (view === "cats") {
         body = d.cats.length ? pivot(d.cats, "Xərc maddəsi") : `<div class="empty"><b>${year} ilində xərc yoxdur</b></div>`;
       } else {
@@ -1686,10 +1720,11 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
             <b class="num">${year}</b>
             <button class="icon-btn" data-ryear="1" aria-label="Növbəti il">${chevR}</button>
           </div>
-          <div class="seg" style="grid-template-columns:1fr 1fr 1fr">
+          <div class="seg" style="grid-template-columns:repeat(4,minmax(0,1fr))">
             <button data-rview="months" aria-pressed="${view === "months"}">Aylar</button>
             <button data-rview="cats" aria-pressed="${view === "cats"}">Xərclər</button>
             <button data-rview="inc" aria-pressed="${view === "inc"}">Gəlirlər</button>
+            <button data-rview="accs" aria-pressed="${view === "accs"}">Hesablar</button>
           </div>
           ${body}
           <p class="note">Məbləğlər manatla (₼). Cədvəli sağa-sola sürüşdürə bilərsiniz.</p>
@@ -1697,7 +1732,8 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
         </div>`);
       // Cari ilin cədvəlində son aylar görünsün
       const w = document.querySelector(".sheet .tbl-wrap");
-      if (w && view !== "months" && year === new Date().getFullYear()) w.scrollLeft = w.scrollWidth;
+      if (w && (view === "cats" || view === "inc") && year === new Date().getFullYear()) w.scrollLeft = w.scrollWidth;
+      $("#r-acc")?.addEventListener("change", e => { accSel = e.target.value; draw(); });
     };
     sheetHandler = e => {
       const t = e.target.closest("button"); if (!t) return;
