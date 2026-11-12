@@ -554,12 +554,13 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
   // Valyuta: məbləğ həmişə manatla (amount) saxlanır; xarici valyuta yalnız orig və kurs ilə qeyd olunur
   const CURRENCIES = [{ code: "AZN", label: "₼ AZN" }, { code: "USD", label: "$ USD" }, { code: "EUR", label: "€ EUR" }];
   const CUR_SYM = { USD: "$", EUR: "€" };
-  const DEFAULT_RATE = { USD: 1.7, EUR: 2 };
+  const DEFAULT_RATE = { USD: 1.7, EUR: 1.88 };
   const parseNum = s => parseFloat(String(s ?? "").replace(/\s/g, "").replace(",", ".")) || 0;
   const plainNum = v => (Math.round(v * 100) / 100).toFixed(2).replace(/\.00$/, "").replace(".", ",").replace(/\B(?=(\d{3})+(?!\d))/g, " ");
   const curOf = f => (f.cur && f.cur !== "AZN" ? f.cur : null);
-  const lastRate = c => { try { const v = parseFloat(localStorage.getItem("budcem.rate." + c)); return v > 0 ? v : DEFAULT_RATE[c]; } catch { return DEFAULT_RATE[c]; } };
-  const setLastRate = (c, v) => { try { localStorage.setItem("budcem.rate." + c, String(v)); } catch {} };
+  // Kurs hər yeni yazıda standartdır (USD 1,70, EUR 1,88); yazıda istəsəniz dəyişirsiniz, amma yadda saxlanmır (istifadəçi istəyi)
+  const lastRate = c => DEFAULT_RATE[c];
+  const setLastRate = () => {};
   const effAmt = f => (curOf(f) ? parseNum(f.orig) * parseNum(f.rate) : parseNum(f.amount));
   // Göz düyməsi bağlı olanda məbləğ yerinə nöqtələr göstərilir
   const shownMoney = v => (state.hideBal ? "• • • •" : money(v));

@@ -30,7 +30,7 @@ Dəyişiklikdən sonra Playwright ilə iPhone ölçüsündə (390px) açıb əsa
 ## Valyuta (USD / EUR)
 - Xərc və gəlir formasında valyuta seçimi var (₼ AZN, $ USD, € EUR). `amount` həmişə manatla saxlanılır, hesabatlar dəyişməyib.
 - Xarici valyuta yazılarında əlavə sahələr: `cur` ("USD"|"EUR"), `orig` (valyutada məbləğ), `rate` (1 valyuta = neçə ₼). Sətirdə "10 $ (kurs 1,75)" görünür.
-- Kurs standart: USD 1,70, EUR 2,00 (təxmini). Son istifadə olunan kurs `budcem.rate.<KOD>` localStorage-da qalır. Kurs saytda avtomatik yenilənmir.
+- Kurs standart: USD 1,70, EUR 1,88 (istifadəçi təyin etdi, 2026-11-12). Hər yeni yazıda standart kurs gəlir, yazıda dəyişmək olar, amma yadda saxlanmır (`lastRate` həmişə `DEFAULT_RATE` qaytarır). Kurs avtomatik yenilənmir.
 - Xatırladıcılar yalnız manatla işləyir.
 
 ## Limit xəbərdarlığı
@@ -54,6 +54,6 @@ Dəyişiklikdən sonra Playwright ilə iPhone ölçüsündə (390px) açıb əsa
 ## Valyuta hesabları (2026-11-12)
 - Valyuta bank kartı və valyuta nağdı `bankCards`-dadır: `cur` ("USD"|"EUR"), nağd üçün `cash: true` (id `cash-…`), `openingAzn` (başlanğıc balansın manat dəyəri, Büdcəm üçün son kursla). Manat nağdı əvvəlki kimi `"cash"`. Köməkçilər: `accCur`, `isCashAcc`, `bankList`, `cashFxList`, `moneyIn`, `accAmt`, `fxSums`, `cashChips`.
 - Valyuta hesabının balansı öz valyutasındadır (`accDelta` → `accAmt`): xərc/gəlirdə `orig`, köçürmədə `fromOrig`/`toOrig`. `amount` həmişə manatla qalır, hesabatlar və Büdcəm manatla.
-- Əməliyyat formasında valyuta hesabı seçiləndə valyuta həmin hesaba bağlanır.  Köçürmədə "Hara" siyahısında hələ açılmamış "Nağd dollar/avro" da var (`newCashOpts`, id `new:USD`): saxlayanda hesab avtomatik yaranır. Köçürmədə valyutalar fərqlidirsə "Gələn məbləğ" sahəsi çıxır (son kursla doldurulur); manat ↔ valyuta dəyişməsi `budcem.rate.<KOD>` kursunu yeniləyir. Valyuta hesabından taksit kartına ödəniş `cardpay` + `cur/orig/rate`.
+- Əməliyyat formasında valyuta hesabı seçiləndə valyuta həmin hesaba bağlanır.  Köçürmədə "Hara" siyahısında hələ açılmamış "Nağd dollar/avro" da var (`newCashOpts`, id `new:USD`): saxlayanda hesab avtomatik yaranır. Köçürmədə valyutalar fərqlidirsə "Gələn məbləğ" sahəsi çıxır (son kursla doldurulur). Valyuta hesabından taksit kartına ödəniş `cardpay` + `cur/orig/rate`.
 - Xülasədə Bank kartları və Nağd düymələrində valyuta cəmləri kiçik sətirdə ("60 $"). Nağd düyməsi "Nağd" pəncərəsini açır (`openCashSheet`: dollar/avro nağdı əlavə et, mövcud balans).
 - Büdcəm kartında ₼ $ € seçimi (`budCur`, `budcem.budCur` yadda qalır, `budBox`). Konvertasiya YOXDUR (istifadəçi istəyi): ₼ — yalnız manat hesablarının cəmi və manat hesablarındakı gəlir/xərc; $ və € — yalnız həmin valyutadakı hesablar (yoxdursa 0). Valyuta hesabı yoxdursa ₼ köhnə qaydada (carryIn + netOf) hesablanır.
