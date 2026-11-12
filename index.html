@@ -311,6 +311,25 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
 .type .dot { width: 12px; height: 12px; border-radius: 4px; }
 .type[aria-pressed="true"] { border-color: var(--c); background: color-mix(in srgb, var(--c) 12%, var(--surface)); }
 
+/* Əməliyyat forması: yığcam, düymələr aşağıda (baş barmaq üçün) */
+.rec-head { grid-template-columns: 1fr; text-align: center; padding-block: 12px 8px; }
+.stack.rec { gap: 10px; }
+.rec .field { gap: 4px; }
+.rec .amount-wrap { align-items: center; padding: 6px 6px 6px 14px; }
+.rec .amount-wrap input { font-size: 30px; }
+.curs { display: flex; gap: 2px; background: var(--surface-2); border-radius: 10px; padding: 3px; flex: none; }
+.curs button { border: 0; background: transparent; border-radius: 8px; min-width: 40px; height: 40px; font-size: 17px; font-weight: 700; color: var(--muted); }
+.curs button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
+.types.four { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.types.four .type { flex-direction: column; justify-content: center; gap: 4px; padding: 8px 2px; font-size: 13px; text-align: center; border-radius: 12px; min-height: 52px; }
+.types.four .type .dot { width: 10px; height: 10px; }
+.rec .seg button { padding: 10px 4px; }
+.rec .picker { min-height: 48px; }
+.dn { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 8px; }
+.dn input[type=date].input { padding-inline: 10px; font-size: 15px; }
+.rec-bar { position: sticky; bottom: calc(-20px - env(safe-area-inset-bottom, 0px)); display: grid; grid-template-columns: 1fr 2fr; gap: 8px; margin-top: 12px; padding-block: 8px calc(20px + env(safe-area-inset-bottom, 0px)); margin-bottom: calc(-20px - env(safe-area-inset-bottom, 0px)); background: var(--bg); }
+.rec-bar button { padding: 15px; font-size: 16px; border-radius: 14px; }
+.rec-bar .primary:disabled { opacity: .45; }
 .danger { border: 0; width: 100%; background: var(--surface); color: var(--expense); border-radius: 12px; padding: 13px; font-weight: 600; }
 .danger.confirm { background: var(--expense); color: #fff; }
 .primary { border: 0; width: 100%; background: var(--accent); color: var(--accent-fg); border-radius: 12px; padding: 13px; font-weight: 600; }
@@ -2654,22 +2673,17 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
       const sel = cats.find(c => c.id === f.catId);
       const ok = amt > 0 && sel && f.date;
       sheet(`
-        <div class="sheet-head">
-          <button class="link" data-close>Ləğv et</button>
-          <h2>${editing ? "Düzəliş" : "Yeni əməliyyat"}</h2>
-          <button class="link save" data-save ${ok ? "" : "disabled"}>Saxla</button>
-        </div>
-        <div class="stack">
+        <div class="sheet-head rec-head"><h2>${editing ? "Düzəliş" : "Yeni əməliyyat"}</h2></div>
+        <div class="stack rec">
           <div class="seg">
             <button data-kind="expense" aria-pressed="${f.kind === "expense"}">Xərc</button>
             <button data-kind="income" aria-pressed="${f.kind === "income"}">Gəlir</button>
           </div>
-          <div class="chips">${CURRENCIES.map(c => `
-            <button class="chip" data-cur="${c.code}" aria-pressed="${(cur || "AZN") === c.code}">${c.label}</button>`).join("")}</div>
-          <label class="amount-wrap"><input id="f-amount" class="num" inputmode="decimal" placeholder="0" value="${esc(cur ? (f.orig ?? "") : (f.amount ?? ""))}" autocomplete="off"><em>${cur ? CUR_SYM[cur] : "₼"}</em></label>
+          <div class="amount-wrap"><input id="f-amount" class="num" inputmode="decimal" placeholder="0" aria-label="Məbləğ" value="${esc(cur ? (f.orig ?? "") : (f.amount ?? ""))}" autocomplete="off"><div class="curs">${CURRENCIES.map(c => `
+            <button data-cur="${c.code}" aria-label="${c.code}" aria-pressed="${(cur || "AZN") === c.code}">${c.label.split(" ")[0]}</button>`).join("")}</div></div>
           ${cur ? `<div class="field"><span>Kurs (1 ${cur} = ? ₼)</span><input id="f-rate" class="input num" inputmode="decimal" value="${esc(f.rate ?? String(lastRate(cur)).replace(".", ","))}"></div>
-          <p id="f-prev" class="note" style="text-align:left;margin:-4px 0 8px">Manatla: ${amt > 0 ? money(amt) : "—"}</p>` : ""}
-          ${f.kind === "expense" ? `<div class="field"><span>Başlıq</span><div class="types">${TYPES.map(t => `
+          <p id="f-prev" class="note" style="text-align:left;margin:-4px 0 0">Manatla: ${amt > 0 ? money(amt) : "—"}</p>` : ""}
+          ${f.kind === "expense" ? `<div class="field"><span>Başlıq</span><div class="types four">${TYPES.map(t => `
             <button class="type" style="--c:${t.color}" data-type="${t.id}" aria-pressed="${f.type === t.id}"><span class="dot" style="background:${t.color}"></span>${t.title}</button>`).join("")}</div></div>
           <div class="field"><span>Necə ödənildi</span><div class="seg three">
             <button data-pay="bank" aria-pressed="${f.pay !== "card" && f.acc !== "cash"}">Bank kartı</button>
@@ -2691,8 +2705,14 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
             ${isUtil(sel) ? `<div class="chips" style="margin-top:8px">${UTIL_SUBS.map(x => `
               <button class="chip" data-sub="${x}" aria-pressed="${f.sub === x}">${x}</button>`).join("")}</div>` : ""}
           </div>
-          <label class="field"><span>Tarix</span><input id="f-date" class="input" type="date" value="${esc(f.date)}"></label>
-          <label class="field"><span>Qeyd</span><input id="f-note" class="input" placeholder="İstəyə bağlı" value="${esc(f.note)}" maxlength="120"></label>
+          <div class="dn">
+            <label class="field"><span>Tarix</span><input id="f-date" class="input" type="date" value="${esc(f.date)}"></label>
+            <label class="field"><span>Qeyd</span><input id="f-note" class="input" placeholder="İstəyə bağlı" value="${esc(f.note)}" maxlength="120"></label>
+          </div>
+        </div>
+        <div class="rec-bar">
+          <button class="secondary" data-close>Ləğv et</button>
+          <button class="primary" data-save ${ok ? "" : "disabled"}>Saxla</button>
         </div>`);
       const a = $("#f-amount");
       const refresh = () => {
