@@ -2195,10 +2195,9 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
   // Bankdakı kimi: rəngli "Balans" yazısı; basanda "28,89 ₼ → 27,89 ₼ Gizlə" açılır
   const balOpen = new Set();
   function balLine(r) {
-    if (state.hideBal) return "";
     const st = getBalSteps()[r.id];
     if (!st) return "";
-    if (!balOpen.has(r.id)) return `<div class="sub balstep"><span class="ballink" role="button" data-balt="${esc(r.id)}">Balans</span></div>`;
+    if (!balOpen.has(r.id)) return `<div class="sub balstep"><span class="ballink" role="button" data-balt="${esc(r.id)}">Balansı göstər</span></div>`;
     return `<div class="sub balstep">${esc(st.name)}: <span class="num">${money(st.before)} → ${money(st.after)}</span> <span class="ballink" role="button" data-balt="${esc(r.id)}">Gizlə</span></div>`;
   }
   // Sətrin özü (redaktə) açılmasın: tutma mərhələsində tutulur, yalnız bu sətir yenilənir
