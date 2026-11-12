@@ -1827,6 +1827,18 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
         r2(Number(r.amount) || 0), r.note || ""
       ]));
       add("Əməliyyatlar", ops, [12, 18, 12, 22, 12, 30]);
+      // 5. Hesablar üzrə aylar və 6. günlər (bank kartları, nağd, taksit kartları)
+      const accs = xferList();
+      const aRows = [["Hesab", "Ay", "Əvvəl", "Giriş", "Çıxış", "Dəyişiklik", "Son"]];
+      const dRows = [["Tarix", "Hesab", "Əvvəl", "Giriş", "Çıxış", "Dəyişiklik", "Son"]];
+      accs.forEach(a => {
+        const nm = a.card ? `${a.name} (borc)` : a.name;
+        accountMonths(a.id, year).forEach(m => aRows.push([nm, `${m.name} ${year}`, ...[m.start, m.inc, m.out, m.end - m.start, m.end].map(r2)]));
+        aRows.push([]);
+        for (let mi = 0; mi < 12; mi++) accountMonths(a.id, year, mi).forEach(x => dRows.push([`${x.name.split(" ")[0].padStart(2, "0")}.${pad(mi + 1)}.${year}`, nm, ...[x.start, x.inc, x.out, x.end - x.start, x.end].map(r2)]));
+      });
+      add("Hesablar", aRows, [22, 16, 12, 12, 12, 12, 12]);
+      add("Hesablar (günlər)", dRows, [12, 22, 12, 12, 12, 12, 12]);
 
       const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
       const filename = `Budcem-hesabat-${year}.xlsx`;
