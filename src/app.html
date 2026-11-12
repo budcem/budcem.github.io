@@ -345,6 +345,7 @@ input[type=date].input { -webkit-appearance: none; appearance: none; min-height:
 .tile span.s { display: block; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tile.warn span.s { color: var(--credit); font-weight: 600; }
 .balstep { font-size: 12px; opacity: .85; }
+.ballink { color: var(--accent); font-weight: 600; cursor: pointer; padding: 2px 0; }
 .tbl tr.rmon { cursor: pointer; }
 .tbl tr.rmon td:first-child u { text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); text-underline-offset: 3px; }
 .limit-alerts .la { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 15px; }
@@ -1955,7 +1956,7 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
 
     return `
       <section class="card balance">
-        <p class="label">Qalıq<button class="eye-btn" data-hidebal aria-pressed="${!!state.hideBal}" aria-label="${state.hideBal ? "Rəqəmləri göstər" : "Rəqəmləri gizlət"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${state.hideBal ? `<path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6A17 17 0 0 0 2 12s3.5 7 10 7a9.8 9.8 0 0 0 5.4-1.6"/>` : `<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>`}</svg></button></p>
+        <p class="label">Büdcə<button class="eye-btn" data-hidebal aria-pressed="${!!state.hideBal}" aria-label="${state.hideBal ? "Rəqəmləri göstər" : "Rəqəmləri gizlət"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${state.hideBal ? `<path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6A17 17 0 0 0 2 12s3.5 7 10 7a9.8 9.8 0 0 0 5.4-1.6"/>` : `<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>`}</svg></button></p>
         <div class="big num ${bal < 0 ? "neg" : ""}">${shownMoney(bal)}</div>
         <div class="split">
           <div class="in"><small>Gəlir</small><b class="num">${shownMoney(inc)}</b></div>
@@ -2191,12 +2192,25 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
     }
     return balSteps = steps;
   }
+  // Bankdakı kimi: rəngli "Balans" yazısı; basanda "28,89 ₼ → 27,89 ₼ Gizlə" açılır
+  const balOpen = new Set();
   function balLine(r) {
     if (state.hideBal) return "";
     const st = getBalSteps()[r.id];
     if (!st) return "";
-    return `<div class="sub balstep">${esc(st.name)}: <span class="num">${money(st.before)} → ${money(st.after)}</span></div>`;
+    if (!balOpen.has(r.id)) return `<div class="sub balstep"><span class="ballink" role="button" data-balt="${esc(r.id)}">Balans</span></div>`;
+    return `<div class="sub balstep">${esc(st.name)}: <span class="num">${money(st.before)} → ${money(st.after)}</span> <span class="ballink" role="button" data-balt="${esc(r.id)}">Gizlə</span></div>`;
   }
+  // Sətrin özü (redaktə) açılmasın: tutma mərhələsində tutulur, yalnız bu sətir yenilənir
+  document.addEventListener("click", e => {
+    const t = e.target.closest("[data-balt]"); if (!t) return;
+    e.stopPropagation(); e.preventDefault();
+    const id = t.dataset.balt;
+    balOpen.has(id) ? balOpen.delete(id) : balOpen.add(id);
+    const r = state.records.find(x => x.id === id);
+    const line = t.closest(".balstep");
+    if (r && line) line.outerHTML = balLine(r);
+  }, true);
   function rowHtml(r) {
     if (r.kind === "transfer") return `<button class="row" data-edit="${esc(r.id)}">
       <span class="badge" style="background:var(--surface-2);color:var(--accent)">⇄</span>
