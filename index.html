@@ -1995,9 +1995,13 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
   const cashFxList = () => state.bankCards.filter(b => b.cash);
   const moneyIn = (v, cur) => cur ? money(v).replace("₼", CUR_SYM[cur]) : money(v);
   const shownIn = (v, cur) => (state.hideBal ? "• • • •" : moneyIn(v, cur));
-  // Büdcə kartı manat, dollar və ya avro ilə (son kursla çevrilir; seçim yadda qalır)
+  // Büdcəm kartı manat, dollar və ya avro ilə: hər valyuta yalnız öz hesablarını göstərir (seçim yadda qalır)
   const budCur = () => { try { const c = localStorage.getItem("budcem.budCur"); return CUR_SYM[c] ? c : "AZN"; } catch { return "AZN"; } };
-  const shownBud = v => { const c = budCur(); return c === "AZN" ? shownMoney(v) : shownIn(v / lastRate(c), c); };
+  const budBox = (bal, inc, out, cur) => `<div class="big num ${bal < 0 ? "neg" : ""}">${shownIn(bal, cur)}</div>
+        <div class="split">
+          <div class="in"><small>Gəlir</small><b class="num">${shownIn(inc, cur)}</b></div>
+          <div class="out"><small>Xərc</small><b class="num">${shownIn(out, cur)}</b></div>
+        </div>`;
   const accDisp = b => b.cash ? b.name : b.name + (b.cur ? " " + CUR_SYM[b.cur] : "");
   // Valyuta hesablarının cəmi valyuta üzrə: "100 $ · 50 €"
   const fxSums = list => { const t = {}; list.filter(b => b.cur).forEach(b => { t[b.cur] = (t[b.cur] || 0) + accBalance(b.id, "9999-12-31"); }); return Object.entries(t).map(([c, v]) => shownIn(v, c)).join(" · "); };
@@ -2109,12 +2113,19 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
     return `
       <section class="card balance">
         <p class="label">Büdcəm<button class="eye-btn" data-hidebal aria-pressed="${!!state.hideBal}" aria-label="${state.hideBal ? "Rəqəmləri göstər" : "Rəqəmləri gizlət"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${state.hideBal ? `<path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6A17 17 0 0 0 2 12s3.5 7 10 7a9.8 9.8 0 0 0 5.4-1.6"/>` : `<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>`}</svg></button><span class="curs bcur" role="group" aria-label="Büdcənin valyutası">${CURRENCIES.map(c => `<button data-budcur="${c.code}" aria-label="${c.code}" aria-pressed="${budCur() === c.code}">${c.label.split(" ")[0]}</button>`).join("")}</span></p>
-        <div class="big num ${bal < 0 ? "neg" : ""}">${shownBud(bal)}</div>
-        <div class="split">
-          <div class="in"><small>Gəlir</small><b class="num">${shownBud(inc)}</b></div>
-          <div class="out"><small>Xərc</small><b class="num">${shownBud(out)}</b></div>
-        </div>
-        ${budCur() !== "AZN" ? `<p class="bcur-note">Son kursla: 1 ${CUR_SYM[budCur()]} = ${plainNum(lastRate(budCur()))} ₼</p>` : ""}
+        ${(() => {
+          // Hər valyuta öz pulu ilə: ₼ — manat hesabları, $ / € — həmin valyutadakı hesablar (konvertasiya yoxdur)
+          const bc = budCur();
+          if (bc === "AZN" && !state.bankCards.some(b => b.cur)) return budBox(bal, inc, out, null);
+          const end = ymd(new Date(state.month.getFullYear(), state.month.getMonth() + 1, 0));
+          const C = bc === "AZN" ? null : bc;
+          const accs = [...state.bankCards.filter(b => (b.cur || null) === C).map(b => b.id), ...(C ? [] : ["cash"])];
+          const recCur = r => isCardExp(r) ? null : accCur(accOf(r));
+          const amtOf = r => isCardExp(r) || !C ? Number(r.amount) || 0 : accAmt(r, accOf(r));
+          const mine = list.filter(r => r.kind !== "transfer" && r.kind !== "cardpay" && recCur(r) === C);
+          const sumBy = k => mine.filter(r => r.kind === k).reduce((a, r) => a + amtOf(r), 0);
+          return budBox(accs.reduce((t, id) => t + accBalance(id, end), 0), sumBy("income"), sumBy("expense"), C);
+        })()}
         <div class="accs">
           ${(() => {
             const end = ymd(new Date(state.month.getFullYear(), state.month.getMonth() + 1, 0));
