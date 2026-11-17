@@ -57,3 +57,7 @@ Dəyişiklikdən sonra Playwright ilə iPhone ölçüsündə (390px) açıb əsa
 - Əməliyyat formasında valyuta hesabı seçiləndə valyuta həmin hesaba bağlanır.  Köçürmədə "Hara" siyahısında hələ açılmamış "Nağd dollar/avro" da var (`newCashOpts`, id `new:USD`): saxlayanda hesab avtomatik yaranır. Köçürmədə valyutalar fərqlidirsə "Gələn məbləğ" sahəsi çıxır (son kursla doldurulur). Valyuta hesabından taksit kartına ödəniş `cardpay` + `cur/orig/rate`.
 - Xülasədə Bank kartları və Nağd düymələrində valyuta cəmləri kiçik sətirdə ("60 $"). Nağd düyməsi "Nağd" pəncərəsini açır (`openCashSheet`: dollar/avro nağdı əlavə et, mövcud balans).
 - Büdcəm kartında ₼ $ € seçimi (`budCur`, `budcem.budCur` yadda qalır, `budBox`). Konvertasiya YOXDUR (istifadəçi istəyi): ₼ — yalnız manat hesablarının cəmi və manat hesablarındakı gəlir/xərc; $ və € — yalnız həmin valyutadakı hesablar (yoxdursa 0). Valyuta hesabı yoxdursa ₼ köhnə qaydada (carryIn + netOf) hesablanır.
+
+## Sürətli açılış (2026-11-17)
+- Canlı məlumat gələndə son vəziyyət telefonda eyni açarla şifrəli saxlanır (`budcem.snap`, `budcem.snapUid`; `saveSnap`). Növbəti açılışda Firebase gözlənilmədən dərhal göstərilir (`loadSnap`), canlı məlumat gələndə yenilənir. Bu müddətdə edilən yazılar baza qoşulana qədər gözləyir (`snapOnly`, `dbReady`, `endSnap`). Çıxışda snap silinir. Test: saxta Firebase ilə açılış 2,9 s → 0,05 s.
+- `sw.js`: öz fayllar üçün şəbəkə gözləmə müddəti 1,5 s (əvvəl 3 s).

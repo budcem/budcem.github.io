@@ -18,14 +18,14 @@ self.addEventListener("fetch", e => {
     return;
   }
   if (url.host !== location.host) return;
-  // Öz fayllarımız: əvvəlcə şəbəkə (yeniləmələr dərhal görünür). Şəbəkə 3 saniyədən çox ləngisə, keşdəki nüsxə açılır,
+  // Öz fayllarımız: əvvəlcə şəbəkə (yeniləmələr dərhal görünür). Şəbəkə 1,5 saniyədən çox ləngisə, keşdəki nüsxə açılır,
   // yeni versiya isə arxa planda keşə yazılır.
   const net = fetch(new Request(e.request.url, { cache: "no-cache" })).then(r => { if (r.ok) { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); } return r; });
   const cached = () => caches.match(e.request).then(r => r || caches.match("./index.html"));
   e.respondWith(new Promise(resolve => {
     let done = false;
     const finish = r => { if (!done && r) { done = true; resolve(r); } };
-    const timer = setTimeout(() => cached().then(r => r ? finish(r) : net.then(finish, () => {})), 3000);
+    const timer = setTimeout(() => cached().then(r => r ? finish(r) : net.then(finish, () => {})), 1500);
     net.then(r => { clearTimeout(timer); finish(r); }, () => { clearTimeout(timer); cached().then(r => finish(r || Response.error())); });
   }));
 });

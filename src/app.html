@@ -894,6 +894,8 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
   let lastTouchEnd = 0;
   document.addEventListener("touchend", e => { const now = Date.now(); if (now - lastTouchEnd < 300 && !e.target.closest("input, textarea, select")) e.preventDefault(); lastTouchEnd = now; }, { passive: false });
   const LAST_USER = "budcem.lastUser";
+  // Sürətli açılış: son məlumat telefonda şifrəli nüsxə kimi saxlanır (eyni açarla) və Firebase gözlənilmədən dərhal göstərilir
+  const SNAP = "budcem.snap", SNAP_UID = "budcem.snapUid";
   const hideAuth = () => { $("#auth").hidden = true; $("#auth").innerHTML = ""; };
 
   const store = {
@@ -908,9 +910,11 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
         if (db && id) return this.initDb(db, id);
       }
       if (!window.claude) {
+        this.loadSnap();
         let fb = null;
         try { fb = await loadFirebase(); } catch (e) {}
         if (fb) return this.initCloud(fb);
+        this.endSnap(false); state.ready = false;
       }
       this.initLocal();
     },
@@ -920,7 +924,9 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
       fb.auth.onAuthStateChanged(async u => {
         this.stop();
         this.user = u || null; this.key = null; this.rawKey = null;
-        state.ready = false; state.records = []; render();
+        // Eyni istifadəçinin son nüsxəsi göstərilirsə, ekran boşalmır; canlı məlumat gələndə yenilənir
+        const keep = !!u && this.snapUid === u.uid && state.ready && this.snapOnly;
+        if (!keep) { this.endSnap(false); this.snapUid = null; state.ready = false; state.records = []; render(); }
         if (!u) return showAuth("login");
         try { localStorage.setItem(LAST_USER, displayName(u.email)); } catch (e) {}
         const pass = this.pendingPass; this.pendingPass = null;
@@ -1014,10 +1020,43 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
       try { const rec = { ...(await unsealJson(this.key, x.enc)), id: d.id }; this.recCache.set(d.id, { ct: x.enc.ct, rec }); return rec; }
       catch (e) { return null; }
     },
+    async loadSnap() {
+      try {
+        const uid = localStorage.getItem(SNAP_UID); if (!uid) return;
+        const raw = localStorage.getItem(KEY_LS + uid), box = JSON.parse(localStorage.getItem(SNAP) || "null");
+        if (!raw || !box) return;
+        this.snapOnly = true;
+        this.dbReady = new Promise(ok => { this.dbReadyOk = ok; });
+        const d = await unsealJson(await importDek(unb64(raw)), box);
+        if (this.live || state.ready || !this.snapOnly) return;
+        state.categories = d.categories || DEFAULT_CATS.slice();
+        state.reminders = d.reminders || []; state.done = d.done || {};
+        state.plan = normPlan(d.plan);
+        state.cards = normCards(d.cards, d.cardOpening);
+        state.bankCards = normBanks(d.bankCards);
+        state.profile = d.profile || {};
+        state.catsVersion = d.catsVersion || 1;
+        state.records = Array.isArray(d.records) ? d.records : [];
+        this.snapUid = uid; state.ready = true; render();
+      } catch (e) {}
+    },
+    // Snapshot göstərilərkən edilən dəyişikliklər baza qoşulana qədər gözləyir
+    endSnap(ok) { if (this.snapOnly) { this.snapOnly = false; this.dbReadyOk && this.dbReadyOk(ok); } },
+    saveSnap() {
+      clearTimeout(this.snapT);
+      this.snapT = setTimeout(async () => {
+        if (!this.cloud || !this.key || !this.user || !state.ready) return;
+        try {
+          const box = await sealJson(this.key, { categories: state.categories, reminders: state.reminders, done: state.done, plan: state.plan, cards: state.cards, bankCards: state.bankCards, profile: state.profile, catsVersion: state.catsVersion, records: state.records });
+          localStorage.setItem(SNAP, JSON.stringify(box)); localStorage.setItem(SNAP_UID, this.user.uid);
+        } catch (e) {}
+      }, 800);
+    },
     stop() { this.unsubs.forEach(f => typeof f === "function" && f()); this.unsubs = []; this.migrated = false; },
     async signOut() {
       this.stop();
       this.key = null; this.rawKey = null; this.recCache.clear();
+      try { localStorage.removeItem(SNAP); localStorage.removeItem(SNAP_UID); } catch (e) {}
       try { await this.fb.auth.signOut(); } catch (e) {}
     },
     // Yeni (boş) hesaba bu telefondakı köhnə məlumat köçürülür. Hər telefon yalnız bir hesaba köçürür.
@@ -1054,7 +1093,10 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
       this.base = db.doc(path || `data/users/${id}/budget`);
       this.recs = this.base.collection("records");
       let gotCats = false, gotRecs = false;
-      const done = () => { if (gotCats && gotRecs && !state.ready) { state.ready = true; } render(); };
+      const done = () => {
+        if (gotCats && gotRecs) { this.live = true; state.ready = true; this.endSnap(true); this.saveSnap(); }
+        render();
+      };
       let metaSeq = 0, recSeq = 0;
       const unsubMeta = this.base.onSnapshot(async s => {
         const my = ++metaSeq;
@@ -1159,6 +1201,7 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
       if (!fromUndo) this.pushHistory({ kind: "save", id: r.id, prev: i >= 0 ? state.records[i] : null });
       if (i >= 0) state.records[i] = r; else state.records.push(r);
       render();
+      if (this.snapOnly && !(await this.dbReady)) return;
       if (this.mode === "local") return this.persistLocal();
       const { id, ...body } = r;
       try { await this.putRec(id, body); } catch (e) { toast(e?.code === "quota_exceeded" ? "Yaddaş limiti dolub." : "Yadda saxlamaq alınmadı. Yenidən cəhd edin."); }
@@ -1168,6 +1211,7 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
       if (prev && !fromUndo) this.pushHistory({ kind: "delete", id, prev });
       state.records = state.records.filter(r => r.id !== id);
       render();
+      if (this.snapOnly && !(await this.dbReady)) return;
       if (this.mode === "local") return this.persistLocal();
       try { await this.recs.doc(id).delete(); } catch (e) { toast("Silmək alınmadı."); }
     },
@@ -1188,6 +1232,7 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
     // Kateqoriyalar, xatırladıcılar və "ödənildi" qeydləri bir sənəddə saxlanılır
     async saveMeta() {
       render();
+      if (this.snapOnly && !(await this.dbReady)) return;
       if (this.mode === "local") return this.persistLocal();
       const meta = { categories: state.categories, reminders: state.reminders, done: state.done, plan: state.plan, cards: state.cards, bankCards: state.bankCards, cardOpening: state.cards[0]?.opening || 0, profile: state.profile, catsVersion: state.catsVersion };
       // catsVersion şifrəsiz də qalır ki, köhnə versiya açılsa, boş məlumatı "yeniləyib" üstünə yazmasın
