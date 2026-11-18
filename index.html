@@ -1396,14 +1396,14 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
           return `<button class="row" data-card="${esc(c.id)}">
             ${badge(c.name)}
             <span class="t"><div>${esc(c.name)}</div>
-              <div class="sub">${c.limit > 0 ? `Limit ${money(c.limit)} · Boş ${money(free)}` : "Limit yazılmayıb"}</div>
+              <div class="sub">${c.limit > 0 ? `Limit ${money(c.limit)} · Qalıq ${money(free)}` : "Limit yazılmayıb"}</div>
               ${c.limit > 0 ? `<div class="track"><i style="width:${Math.min(100, Math.max(0, debt / c.limit * 100)).toFixed(1)}%"></i></div>` : ""}
             </span>
             <span class="amt num ${debt > 0 ? "bal-neg" : ""}">${money(debt)}</span>
           </button>`;
         }).join("")}</div>
         <button class="secondary" data-newcard>+ Yeni kart</button>
-        <p class="note">Hər kartın qalan borcu sağda görünür. Kartla alış edəndə xərci adi qaydada yazın, "Taksit kartı" və kartı seçin. Karta pul köçürəndə kartın içindən "Karta ödəniş" əlavə edin.</p>
+        <p class="note">Sağda kartdan xərclənən məbləğ (borc) görünür. Kartla alış edəndə xərci adi qaydada yazın, "Taksit kartı" və kartı seçin. Karta pul köçürəndə kartın içindən "Karta ödəniş" əlavə edin.</p>
       </div>`);
     sheetHandler = e => {
       const t = e.target.closest("button"); if (!t) return;
@@ -1426,11 +1426,11 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
       </div>
       <div class="stack">
         <section class="card balance">
-          <p class="label">Qalan borc</p>
+          <p class="label">Xərclənən</p>
           <div class="big num ${debt > 0 ? "neg" : ""}">${money(debt)}</div>
           <div class="split">
             <div><small>Limit</small><b class="num">${c.limit > 0 ? money(c.limit) : "—"}</b></div>
-            <div class="in"><small>Boş limit</small><b class="num">${c.limit > 0 ? money(c.limit - debt) : "—"}</b></div>
+            <div class="in"><small>Qalıq</small><b class="num">${c.limit > 0 ? money(c.limit - debt) : "—"}</b></div>
           </div>
           <div class="split" style="margin-top:10px">
             <div class="out"><small>${MONTHS[m]}: kartla xərc</small><b class="num">${money(sum(list.filter(isCardExp)))}</b></div>
@@ -2184,11 +2184,14 @@ button.acc { border: 0; text-align: left; font: inherit; color: inherit; cursor:
             const end = ymd(new Date(state.month.getFullYear(), state.month.getMonth() + 1, 0));
             const bank = bankList().filter(b => !b.cur).reduce((t, b) => t + accBalance(b.id, end), 0);
             const cash = accBalance("cash", end);
+            // Taksit kartları: limiti yazılan kartların qalığı (limit − borc); limit yoxdursa borc göstərilir
+            const lim = state.cards.filter(c => c.limit > 0);
+            const cardLeft = lim.reduce((a, c) => a + c.limit - cardDebt(c.id), 0);
             const debt = totalCardDebt();
             const fxB = fxSums(bankList()), fxC = fxSums(cashFxList());
             return `<button class="acc" data-openbank><small>Bank kartları</small><b class="num ${bank < 0 ? "neg" : ""}">${shownMoney(bank)}</b>${fxB ? `<span class="fx num">${fxB}</span>` : ""}</button>
           <button class="acc" data-opencash><small>Nağd</small><b class="num ${cash < 0 ? "neg" : ""}">${shownMoney(cash)}</b>${fxC ? `<span class="fx num">${fxC}</span>` : ""}</button>
-          <button class="acc" data-opencard><small>Taksit kartları</small><b class="num ${debt > 0 ? "neg" : ""}">${shownMoney(debt)}</b></button>`;
+          ${lim.length ? `<button class="acc" data-opencard><small>Taksit kartları</small><b class="num ${cardLeft < 0 ? "neg" : ""}">${shownMoney(cardLeft)}</b></button>` : `<button class="acc" data-opencard><small>Taksit kartları</small><b class="num ${debt > 0 ? "neg" : ""}">${shownMoney(debt)}</b></button>`}`;
           })()}
           <button class="xfer" data-transfer aria-label="Hesablar arası köçürmə">⇄ Köçürmə</button>
         </div>
